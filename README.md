@@ -34,12 +34,12 @@ General Workflow:
     Also note that transition time analysis was done by hand by looking at the alpha output graph in conjunction with theta_front and seeing where the graph became periodic
 
 Notes on seedAnalysis.py library:
--Use vidAnalysis.outline for videos without clear color definition
--Use vidAnalysis.outlineColor for videos with clear color definition
--Frame info in vidAnalysis.bottomView needs to be adjusted for each individial test day
--sa.clearfiles() and sa.findTransition are nonfunctional but have good baseline information
--For sa.vectorize_front and sa.vectorize_bottom, the only outputs that matter are angle outputs, all others   are legacy and don't matter for final analysis (they create inaccurate vectors)
--sa.polar2cartesian is the only vector output that is accurate, uses input from sa.vectorize_front and sa.vectorize_bottom
--sa.normalVector has a lot of legacy outputs used for debugging, tCont, xCont, yCont, zCont are actual vector output. All others are some iteration of the maxima and minima
+- Use vidAnalysis.outline for videos without clear color definition
+- Use vidAnalysis.outlineColor for videos with clear color definition
+- Frame info in vidAnalysis.bottomView needs to be adjusted for each individial test day
+- sa.clearfiles() and sa.findTransition are nonfunctional but have good baseline information
+- For sa.vectorize_front and sa.vectorize_bottom, the only outputs that matter are angle outputs, all others  are legacy and don't matter for final analysis (they create inaccurate vectors)
+- sa.polar2cartesian is the only vector output that is accurate, uses input from sa.vectorize_front and sa.vectorize_bottom
+- sa.normalVector has a lot of legacy outputs used for debugging, tCont, xCont, yCont, zCont are actual vector output. All others are some iteration of the maxima and minima
 
 This compilation was meant to generate code for 3 videos. It will require significant adaptation to get it to work with different structures and different test setups
