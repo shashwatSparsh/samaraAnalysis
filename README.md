@@ -43,3 +43,6 @@ Notes on seedAnalysis.py library:
 - sa.normalVector has a lot of legacy outputs used for debugging, tCont, xCont, yCont, zCont are actual vector output. All others are some iteration of the maxima and minima
 
 This compilation was meant to generate code for 3 videos. It will require significant adaptation to get it to work with different structures and different test setups
+
+Video Data:
+https://drive.google.com/drive/folders/1DY54i4nx8palFNCDvFdYkQZlRwWtWIIm?usp=sharing
