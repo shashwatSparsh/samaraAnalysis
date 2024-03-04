@@ -798,7 +798,7 @@ def normalVector(time,ectry,x,y,z):
         zOrient.append(zOrientMax[j])
         zOrient.append(zOrientMin[j])
 
-        if j+1 < len(minima) or j+1 < len(maxima):
+        if j+1 < len(minima) and j+1 < len(maxima):
             # stop loop once alternation is no longer possible (two repeating minima/maxima)
             if minima[j] < maxima[j+1] and minima[j+1] < maxima[j+1]:
                 break
