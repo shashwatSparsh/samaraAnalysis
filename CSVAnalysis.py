@@ -120,3 +120,15 @@ minima,maxima,tOrient,xOrient,yOrient,zOrient,tCont,xCont,yCont,zCont = sa.norma
 #ecc = np.sqrt(1-data['minor axis']**2/data['major axis']**2)
 
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
+
+print(tCont)
+#print(len(tCont) + " " + len(xCont) + " " + len(yCont) + " " + len(zCont))
+#print(len(vY))
+
+#resDic = {'tCont' : tCont,
+#          'vY' : vYsmooth,
+#          'xCont' : xCont,
+#          'yCont' : yCont,
+#          'zCont' : zCont
+#          }
+# results = pandas.DataFrame(resDic)
