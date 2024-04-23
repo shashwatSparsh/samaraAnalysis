@@ -121,9 +121,26 @@ minima,maxima,tOrient,xOrient,yOrient,zOrient,tCont,xCont,yCont,zCont = sa.norma
 
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
 
-print(tCont)
+#print(tCont)
 #print(len(tCont) + " " + len(xCont) + " " + len(yCont) + " " + len(zCont))
 #print(len(vY))
+
+posDic = {'tCont' : tCont,
+          'xCont' : xCont,
+          'yCont' : yCont,
+          'zCont' : zCont}
+
+resultsPos = pandas.DataFrame(posDic)
+resultsPos.to_csv('Positions.csv')
+
+#newVySmooth = vYsmooth.append(0)
+newVySmooth = np.append(vYsmooth, 0)
+
+#print(vYsmooth.size)
+#print(tCont.size)
+vYSmoothDf = pandas.DataFrame({'tCont' : data['time'],
+                               'vYSmooth' : newVySmooth})
+vYSmoothDf.to_csv('Velocities.csv')
 
 #resDic = {'tCont' : tCont,
 #          'vY' : vYsmooth,
