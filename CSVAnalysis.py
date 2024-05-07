@@ -8,7 +8,7 @@ import tsmoothie.smoother as sm
 # lots of refinement could be done and there are a lot of unnecessary lines 
 # but this will serve as an explanation of my steps
 
-id = 7
+id = 3
 date = '20230427'
 
 idText = 'text'
@@ -19,6 +19,8 @@ elif id >= 10 and id < 100:
     idText = f'0{int(id)}'
 elif id >= 100:
     idText = f'{int(id)}'
+
+print(idText)
 
 # read in files
 dims = pandas.read_csv('sampleProperties.csv')
