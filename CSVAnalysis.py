@@ -118,7 +118,10 @@ smoother.smooth(eccXY)
 smoothEccXY = smoother.smooth_data[0]
 
 # peaks
-minima,maxima,tOrient,xOrient,yOrient,zOrient,tCont,xCont,yCont,zCont = sa.normalVector(tNorm,smoothEccYZ,smoothXX,smoothYY,smoothZZ)
+# Error:   File "/Users/shashwatsparsh/Documents/GitHub/samaraAnalysis/seedAnalysis.py", line 826, in normalVector
+#    fX = PchipInterpolator(tOrient,xOrient, extrapolate=True)
+# Future Fix
+# minima,maxima,tOrient,xOrient,yOrient,zOrient,tCont,xCont,yCont,zCont = sa.normalVector(tNorm,smoothEccYZ,smoothXX,smoothYY,smoothZZ)
 #ecc = np.sqrt(1-data['minor axis']**2/data['major axis']**2)
 
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
@@ -127,13 +130,13 @@ minima,maxima,tOrient,xOrient,yOrient,zOrient,tCont,xCont,yCont,zCont = sa.norma
 #print(len(tCont) + " " + len(xCont) + " " + len(yCont) + " " + len(zCont))
 #print(len(vY))
 
-posDic = {'tCont' : tCont,
-          'xCont' : xCont,
-          'yCont' : yCont,
-          'zCont' : zCont}
+posDic = {'tCont' : tNorm,
+          'xCont' : xNorm,
+          'yCont' : yNorm,
+          'zCont' : zNorm}
 
 resultsPos = pandas.DataFrame(posDic)
-resultsPos.to_csv('Positions.csv')
+resultsPos.to_csv('Positions_03.csv')
 
 #newVySmooth = vYsmooth.append(0)
 newVySmooth = np.append(vYsmooth, 0)
@@ -142,12 +145,10 @@ newVySmooth = np.append(vYsmooth, 0)
 #print(tCont.size)
 vYSmoothDf = pandas.DataFrame({'tCont' : data['time'],
                                'vYSmooth' : newVySmooth})
-vYSmoothDf.to_csv('Velocities.csv')
+vYSmoothDf.to_csv('Velocities_03.csv')
 
-#resDic = {'tCont' : tCont,
-#          'vY' : vYsmooth,
-#          'xCont' : xCont,
-#          'yCont' : yCont,
-#          'zCont' : zCont
-#          }
-# results = pandas.DataFrame(resDic)
+# Note, double check figure 2.5 for the calibration to identify the appropriate units (in/s)
+# Thesis Page 17
+# Resolution: 1/2 Res Front View
+# 
+# 0.045 in/pixel front view
