@@ -130,22 +130,34 @@ smoothEccXY = smoother.smooth_data[0]
 #print(len(tCont) + " " + len(xCont) + " " + len(yCont) + " " + len(zCont))
 #print(len(vY))
 
-posDic = {'tCont' : tNorm,
-          'xCont' : xNorm,
-          'yCont' : yNorm,
-          'zCont' : zNorm}
+# Generate Normalized Poisition DataFrame and CSV
+posDic = {'tNorm' : tNorm,
+          'xNorm' : xNorm,
+          'yNorm' : yNorm,
+          'zNorm' : zNorm}
 
 resultsPos = pandas.DataFrame(posDic)
 resultsPos.to_csv('Positions_03.csv')
 
 #newVySmooth = vYsmooth.append(0)
-newVySmooth = np.append(vYsmooth, 0)
+# Append Initial Descent Speed of 0
+# newVySmooth = np.append(0, vYsmooth)
+# Multiply by conversion factor of 0.1 in/pixel
+conversionFactorFront = 0.1
+conversionFactorBot = 0.045
+vYsmoothIPS = np.append(0, vYsmooth) * conversionFactorFront
 
 #print(vYsmooth.size)
 #print(tCont.size)
+
+# Generate Velocity DataFrame and CSV
 vYSmoothDf = pandas.DataFrame({'tCont' : data['time'],
-                               'vYSmooth' : newVySmooth})
-vYSmoothDf.to_csv('Velocities_03.csv')
+                               'vYSmooth' : vYsmoothIPS})
+
+vYSmoothDf.to_csv('Velocities_03IPS.csv')
+
+
+
 
 # Note, double check figure 2.5 for the calibration to identify the appropriate units (in/s)
 # Thesis Page 17
