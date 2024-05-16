@@ -157,8 +157,9 @@ for i in range(timeDifference.size):
 xNormPeaks = xNorm[peaks2]
 
 periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]])
-
-
+RPS = 1/periodT
+omega = RPS * 2 * np.pi
+print(omega)
 
 # Note, double check figure 2.5 for the calibration to identify the appropriate units (in/s)
 # Thesis Page 17
@@ -173,11 +174,17 @@ conversionFactorBot = 0.045
 vYsmoothIPS = vYsmooth * conversionFactorFront
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
-aYsmoothIPS = np.diff(vYsmoothIPS) / np.diff(vTime)
+aYsmoothIPS2 = np.diff(vYsmoothIPS) / np.diff(vTime)
+gIPS2 = 386.08856
+IPS2toFtS2 = 0.0833333
+massGrams = 0.4
+gramsToSlugs = 6.85218e-5
+massSlugs = massGrams * gramsToSlugs
+ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
+ThrustForce = massSlugs * (ThrustAccelerationIPS2 * IPS2toFtS2)
+
 # Remove last value as there are n-2 Accelerations
 aTime = vTime[:-1]
-
-
 
 #print(vYsmooth.size)
 #print(tCont.size)
@@ -187,9 +194,11 @@ vYSmoothDf = pandas.DataFrame({'tCont' : vTime,
                                'vYSmooth' : vYsmoothIPS})
 # vYSmoothDf.to_csv('Velocities_03IPS.csv')
 
-aYSmoothDf = pandas.DataFrame({'time' : aTime,
-                               'aYSmooth' : aYsmoothIPS})
-# aYSmoothDf.to_csv('Acclerations_03IPS.csv')
+thrustDf = pandas.DataFrame({   'time' : aTime,
+                                'aYSmooth' : aYsmoothIPS2,
+                                'Thrust AccelerationIn/s^2' : ThrustAccelerationIPS2,
+                                'Thrust Force lb*ft/s^2' : ThrustForce })
+thrustDf.to_csv('AcclerationsAndThrust__003.csv')
 
 
 
