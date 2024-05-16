@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import pandas
 import seedAnalysis as sa
 import tsmoothie.smoother as sm
+import scipy
+from scipy.signal import find_peaks
 
 # script for analyzing csv files output from createCSV.py
 # lots of refinement could be done and there are a lot of unnecessary lines 
@@ -137,30 +139,58 @@ posDic = {'tNorm' : tNorm,
           'zNorm' : zNorm}
 
 resultsPos = pandas.DataFrame(posDic)
-resultsPos.to_csv('Positions_03.csv')
+# resultsPos.to_csv('Positions_03.csv')
 
-#newVySmooth = vYsmooth.append(0)
-# Append Initial Descent Speed of 0
-# newVySmooth = np.append(0, vYsmooth)
-# Multiply by conversion factor of 0.1 in/pixel
-conversionFactorFront = 0.1
-conversionFactorBot = 0.045
-vYsmoothIPS = np.append(0, vYsmooth) * conversionFactorFront
+# xNormSigns =  np.sign(xNorm)
+# xNormSignChange = ((np.roll(xNormSigns, 1) - xNormSigns) != 0).astype(int)
+# xNormSignChange[0] = 0
+# timeIndexes = np.nonzero(xNormSignChange)
 
-#print(vYsmooth.size)
-#print(tCont.size)
+peaks2, _ = find_peaks(xNorm, prominence=1)     
+timeDifference = np.zeros(peaks2.size - 1)
 
-# Generate Velocity DataFrame and CSV
-vYSmoothDf = pandas.DataFrame({'tCont' : data['time'],
-                               'vYSmooth' : vYsmoothIPS})
+for i in range(timeDifference.size):
+    currTimeIndex = peaks2[i]
+    nextTimeIndex = peaks2[i+1]
+    timeDifference[i] = tNorm[nextTimeIndex]-tNorm[currTimeIndex]
 
-vYSmoothDf.to_csv('Velocities_03IPS.csv')
+xNormPeaks = xNorm[peaks2]
 
+periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]])
 
 
 
 # Note, double check figure 2.5 for the calibration to identify the appropriate units (in/s)
 # Thesis Page 17
-# Resolution: 1/2 Res Front View
-# 
+# Resolution: 1/2 Res Front View 
 # 0.045 in/pixel front view
+# Append Initial Descent Speed of 0
+# newVySmooth = np.append(0, vYsmooth)
+# Multiply by conversion factor of 0.1 in/pixel
+conversionFactorFront = 0.1
+conversionFactorBot = 0.045
+# vYsmoothIPS = np.append(0, vYsmooth) * conversionFactorFront
+vYsmoothIPS = vYsmooth * conversionFactorFront
+# Pull Time from Data Frame and remove last value as there are n-1 Velocities
+vTime = data['time'].to_numpy()[:-1]
+aYsmoothIPS = np.diff(vYsmoothIPS) / np.diff(vTime)
+# Remove last value as there are n-2 Accelerations
+aTime = vTime[:-1]
+
+
+
+#print(vYsmooth.size)
+#print(tCont.size)
+
+# Generate Velocity DataFrame and CSV
+vYSmoothDf = pandas.DataFrame({'tCont' : vTime,
+                               'vYSmooth' : vYsmoothIPS})
+# vYSmoothDf.to_csv('Velocities_03IPS.csv')
+
+aYSmoothDf = pandas.DataFrame({'time' : aTime,
+                               'aYSmooth' : aYsmoothIPS})
+# aYSmoothDf.to_csv('Acclerations_03IPS.csv')
+
+
+
+
