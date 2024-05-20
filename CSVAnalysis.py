@@ -128,19 +128,6 @@ smoothEccXY = smoother.smooth_data[0]
 
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
 
-#print(tCont)
-#print(len(tCont) + " " + len(xCont) + " " + len(yCont) + " " + len(zCont))
-#print(len(vY))
-
-# Generate Normalized Poisition DataFrame and CSV
-posDic = {'tNorm' : tNorm,
-          'xNorm' : xNorm,
-          'yNorm' : yNorm,
-          'zNorm' : zNorm}
-
-resultsPos = pandas.DataFrame(posDic)
-# resultsPos.to_csv('Positions_03.csv')
-
 # xNormSigns =  np.sign(xNorm)
 # xNormSignChange = ((np.roll(xNormSigns, 1) - xNormSigns) != 0).astype(int)
 # xNormSignChange[0] = 0
@@ -161,45 +148,104 @@ RPS = 1/periodT
 omega = RPS * 2 * np.pi
 print(omega)
 
-# Note, double check figure 2.5 for the calibration to identify the appropriate units (in/s)
-# Thesis Page 17
-# Resolution: 1/2 Res Front View 
-# 0.045 in/pixel front view
-# Append Initial Descent Speed of 0
-# newVySmooth = np.append(0, vYsmooth)
-# Multiply by conversion factor of 0.1 in/pixel
-conversionFactorFront = 0.1
-conversionFactorBot = 0.045
-# vYsmoothIPS = np.append(0, vYsmooth) * conversionFactorFront
-vYsmoothIPS = vYsmooth * conversionFactorFront
+
+## Computing Velocity in m/s
+# Thesis Page 17 figure 2.5 for calibration and unit conversion
+# Multiply by conversion factor of 0.1 in/pixel * .0254m/in
+conversionFactorFront = 0.1 # in/pixel
+conversionFactorBot = 0.045 # in/pixel
+inchesToMeters = 0.0254
+
+vYsmoothMPS = vYsmooth * conversionFactorFront * inchesToMeters
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
-aYsmoothIPS2 = np.diff(vYsmoothIPS) / np.diff(vTime)
-gIPS2 = 386.08856
-IPS2toFtS2 = 0.0833333
-massGrams = 0.4
-gramsToSlugs = 6.85218e-5
-massSlugs = massGrams * gramsToSlugs
-ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
-ThrustForce = massSlugs * (ThrustAccelerationIPS2 * IPS2toFtS2)
+
+## Computing Acceleration in m/s^2
+# a = delta V / delta T
+# use numpy differencing function on on vYsmoothMPS and vTime
+aYMPS2 = np.diff(vYsmoothMPS) / np.diff(vTime)
+
+## Smoothing
+
+# Rolling Average Smoother
+# kernel_size = 20
+# kernel = np.ones(kernel_size) / kernel_size
+# smoothedAcceleration = np.convolve(aYMPS2, kernel, mode='same')
+
+# Polynomial Smoother
+polySmooth = sm.PolynomialSmoother(degree=5)
+polyData = aYMPS2
+polySmooth.smooth(polyData)
+PsmoothAcceleration = polySmooth.smooth_data[0]
+
+# Kalman Smoother
+kSmoother = sm.KalmanSmoother(component='level_trend',
+                              component_noise={'level':0.1, 'trend':0.1})
+kSmoother.smooth(aYMPS2)
+smoothAcceleration = kSmoother.smooth_data[0]
 
 # Remove last value as there are n-2 Accelerations
 aTime = vTime[:-1]
 
-#print(vYsmooth.size)
-#print(tCont.size)
+## Computing Thrust Force
+# Fnet = m*a = m*g - Thrust <=> Thrust = m*g - m*a <=> Thrust = m*(g-a)
+# note: a = a_net
+#ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
+#ThrustForce = massSlugs * (ThrustAccelerationIPS2 * IPS2toFtS2)
+# gIPS2 = 386.08856
+# IPS2toFtS2 = 0.0833333
+# gramsToSlugs = 6.85218e-5
+# massSlugs = massGrams * gramsToSlugs
 
-# Generate Velocity DataFrame and CSV
-vYSmoothDf = pandas.DataFrame({'tCont' : vTime,
-                               'vYSmooth' : vYsmoothIPS})
+g = 9.81 # m/s^2
+massGrams = 0.4 # temporarily hard coded for seed three test case
+massKg = massGrams * (10^(-3))
+# ThrustForce = massKg * (-1 * (smoothedAcceleration - massGrams))
+ThrustForce = massKg * (-1 * (smoothAcceleration - massGrams))
+
+## Computing Thrust Coefficient
+# Source: https://commons.erau.edu/cgi/viewcontent.cgi?article=1427&context=ijaaa
+# Equation: T = ((0.25*vinf^2)+((1/6)*vtip^2))*rho*CL*Sb
+# vinf = flow velocity = descent speed
+# vtip = blade tip velocity = omega*R
+# rho = density
+# CL = Coefficient of Lift -> CT = Coefficient of Thrust
+# Sb = Total Blade Area = Elipse Area?
+# Based on the fact that Thrust has already been computed, Equation needs to be reformatted
+# CL = CT = T * ((rho*Sb)^-1) * (((0.25*vinf^2)+((1/6)*vtip^2))^-1)
+
+
+## Generate DataFrames
+resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
+                                 'xNorm' : xNorm,
+                                 'yNorm' : yNorm,
+                                 'zNorm' : zNorm})
+
+vYSmoothDf = pandas.DataFrame({'Time [s]' : vTime,
+                               'Descent Velocity [m/s]' : vYsmoothMPS})
+
+
+thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
+                                'Net Acceleration [m/s^2]' : aYMPS2,
+                                'Thrust Force [N]' : ThrustForce })
+
+## Exporting to CSV
+# resultsPosDf.to_csv('Positions_03.csv')
 # vYSmoothDf.to_csv('Velocities_03IPS.csv')
-
-thrustDf = pandas.DataFrame({   'time' : aTime,
-                                'aYSmooth' : aYsmoothIPS2,
-                                'Thrust AccelerationIn/s^2' : ThrustAccelerationIPS2,
-                                'Thrust Force lb*ft/s^2' : ThrustForce })
-thrustDf.to_csv('AcclerationsAndThrust__003.csv')
+# thrustDf.to_csv('AcclerationsAndThrust__003_01.csv')
 
 
+## Generate Plots
+# Increase Plot Resolution
+plt.rcParams['figure.dpi']=3000
+plt.grid(axis='y')
 
+# testTime = tNorm
 
+# Create plots
+plt.plot(aTime, aYMPS2, color='silver', label='Acceleration')
+plt.plot(aTime, PsmoothAcceleration, color='blue', linestyle='--', label='Polynomial Smoothing')
+plt.plot(aTime, smoothAcceleration, color='green', linestyle='dotted', label='Kalman Smoothing')
+plt.xlabel("Time [s]")
+plt.ylabel('Acceleration [m/s^2]')
+plt.title('Acceleration Smoothing')
