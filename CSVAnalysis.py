@@ -244,16 +244,51 @@ Accelerations = pandas.DataFrame({'Time [s]' : aTime,
 # thrustDf.to_csv('AcclerationsAndThrust__003_01.csv')
 # Accelerations.to_csv('Accelerations with filters.csv')
 
-# kSmootherAlpha = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
-# kSmootherBeta = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
-
+kSmootherAlpha = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
+kSmootherAlpha.smooth(vY)
+kSmootherBeta = sm.KalmanSmoother( component='level',component_noise={'level':0.0009})
+kSmootherBeta.smooth(vY)
+specSmoother = sm.SpectralSmoother(smooth_fraction=0.5, pad_len=1)
+specSmoother.smooth(vY)
+polySmoother = sm.PolynomialSmoother(degree=5)
+polySmoother.smooth(vY)
 gSmoother = sm.GaussianSmoother(n_knots=100,sigma=0.01)
 gSmoother.smooth(vY)
 
+smoothResults = [kSmootherAlpha.smooth_data[0],
+                 kSmootherBeta.smooth_data[0],
+                 specSmoother.smooth_data[0],
+                 polySmoother.smooth_data[0],
+                 gSmoother.smooth_data[0]]
+
+print(smoothResults)
+
+velocitiesDframe = pandas.DataFrame({'vTime' : vTime,
+                                     'vY' : vY,
+                                     'Kalman Smoother' : smoothResults[0],
+                                     'Spectral Smoother' : smoothResults[2],
+                                     'Polynomial Smoother' : smoothResults[3],
+                                     'Gaussian Smoother' : smoothResults[4]})
+
+velocitiesDframe.to_csv('Smoothed Velocities.csv')
+
+
+#fig, axs = plt.subplots(5)
+#axs[0] = plt.plot(vTime, vY, color = 'silver')
+#axs[0] = plt.plot(vTime, smoothResults[0])
+#axs[1] = plt.plot(vTime, vY, color = 'silver')
+#axs[1] = plt.plot(vTime, smoothResults[1])
+#axs[2] = plt.plot(vTime, vY, color = 'silver')
+#axs[2] = plt.plot(vTime, smoothResults[2])
+#axs[3] = plt.plot(vTime, vY, color = 'silver')
+#axs[3] = plt.plot(vTime, vY, smoothResults[3])
+#axs[4] = plt.plot(vTime, vY, color = 'silver')
+#axs[4] = plt.plot(vTime, smoothResults[4])
+
 #plt.plot(vTime, vY, color = 'silver')
-plt.plot(vTime, gSmoother.smooth_data[0], color='blue', linestyle='--')
-plt.plot(vTime, vYsmooth, color='green',linestyle='dotted')
-plt.show()
+#plt.plot(vTime, smoothResults[0])
+# plt.plot(vTime, smooth)
+#plt.show()
 
 
 '''
