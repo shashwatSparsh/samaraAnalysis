@@ -244,11 +244,25 @@ Accelerations = pandas.DataFrame({'Time [s]' : aTime,
 # thrustDf.to_csv('AcclerationsAndThrust__003_01.csv')
 # Accelerations.to_csv('Accelerations with filters.csv')
 
+# kSmootherAlpha = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
+# kSmootherBeta = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
+
+gSmoother = sm.GaussianSmoother(n_knots=100,sigma=0.01)
+gSmoother.smooth(vY)
+
+#plt.plot(vTime, vY, color = 'silver')
+plt.plot(vTime, gSmoother.smooth_data[0], color='blue', linestyle='--')
+plt.plot(vTime, vYsmooth, color='green',linestyle='dotted')
+plt.show()
+
+
+'''
 plt.plot(aTime, aYMPS2, color='silver', label='Acceleration')
 plt.plot(aTime, ksmoothAcceleration2, color='blue', linestyle='--', label='Kalman 2 Smoothing')
 plt.plot(aTime, smoothAcceleration, color='green', linestyle='dotted', label='Kalman Smoothing')
 plt.plot(aTime, PsmoothAcceleration, color='red', linestyle='-.', label='Polynomial Smoothing')
 plt.show()
+'''
 
 '''
 ## Generate Plots
