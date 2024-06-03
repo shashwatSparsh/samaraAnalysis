@@ -3,12 +3,19 @@ import matplotlib.pyplot as plt
 import pandas
 import seedAnalysis as sa
 import tsmoothie.smoother as sm
-import scipy
+import scipy as sc
 from scipy.signal import find_peaks
 
 # script for analyzing csv files output from createCSV.py
 # lots of refinement could be done and there are a lot of unnecessary lines 
 # but this will serve as an explanation of my steps
+
+# Seed Data
+'''
+,id,mass,area,loading,span,chord,aspect
+3,0.4,1168.7016962908854,342.2806703109598,61.121899469049126,24.83221218349697,47.0639380678127
+'''
+
 
 id = 3
 date = '20230427'
@@ -104,6 +111,7 @@ smoothZZ = smoother.smooth_data[0]
 # calculate descent speed
 vY = sa.descentSpeed(data['x'],data['time'])
 
+# smooth out the descent velocity
 smoother2.smooth(vY)
 vYsmooth = smoother2.smooth_data[0]
 
@@ -128,11 +136,7 @@ smoothEccXY = smoother.smooth_data[0]
 
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
 
-# xNormSigns =  np.sign(xNorm)
-# xNormSignChange = ((np.roll(xNormSigns, 1) - xNormSigns) != 0).astype(int)
-# xNormSignChange[0] = 0
-# timeIndexes = np.nonzero(xNormSignChange)
-
+## Omega Computation (rotational velocity)
 peaks2, _ = find_peaks(xNorm, prominence=1)     
 timeDifference = np.zeros(peaks2.size - 1)
 
@@ -146,7 +150,7 @@ xNormPeaks = xNorm[peaks2]
 periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]])
 RPS = 1/periodT
 omega = RPS * 2 * np.pi
-print(omega)
+# print(omega)
 
 
 ## Computing Velocity in m/s
@@ -167,26 +171,7 @@ aYMPS2 = np.diff(vYsmoothMPS) / np.diff(vTime)
 # Remove last value as there are n-2 Accelerations
 aTime = vTime[:-1]
 
-## Smoothing
-# Rolling Average Smoother
-# kernel_size = 20
-# kernel = np.ones(kernel_size) / kernel_size
-# smoothedAcceleration = np.convolve(aYMPS2, kernel, mode='same')
 
-# Polynomial Smoother
-polySmooth = sm.PolynomialSmoother(degree=5)
-polyData = aYMPS2
-polySmooth.smooth(polyData)
-PsmoothAcceleration = polySmooth.smooth_data[0]
-
-# Kalman Smoother
-kSmoother = sm.KalmanSmoother(  component='level_trend',
-                                component_noise={'level':0.1, 'trend':0.1})
-kSmoother2 = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
-kSmoother.smooth(aYMPS2)
-kSmoother2.smooth(aYMPS2)
-smoothAcceleration = kSmoother.smooth_data[0]
-ksmoothAcceleration2 = kSmoother2.smooth_data[0]
 
 ## Computing Thrust Force
 # Fnet = m*a = m*g - Thrust <=> Thrust = m*g - m*a <=> Thrust = m*(g-a)
@@ -201,9 +186,11 @@ ksmoothAcceleration2 = kSmoother2.smooth_data[0]
 g = 9.81 # m/s^2
 massGrams = 0.4 # temporarily hard coded for seed three test case
 massKg = massGrams * (10^(-3))
-# ThrustForce = massKg * (-1 * (smoothedAcceleration - massGrams))
-ThrustForce = massKg * (-1 * (smoothAcceleration - g))
-
+ThrustForce = massKg * (-1 * (g - aYMPS2))
+start = ThrustForce.size - 25
+stop = ThrustForce.size
+step = 1
+slicedThrust = ThrustForce[start:stop:step]
 
 ## Computing Thrust Coefficient
 # Source: https://commons.erau.edu/cgi/viewcontent.cgi?article=1427&context=ijaaa
@@ -215,6 +202,14 @@ ThrustForce = massKg * (-1 * (smoothAcceleration - g))
 # Sb = Total Blade Area = Elipse Area?
 # Based on the fact that Thrust has already been computed, Equation needs to be reformatted
 # CL = CT = T * ((rho*Sb)^-1) * (((0.25*vinf^2)+((1/6)*vtip^2))^-1)
+Sb_mm2 = 1168.7016962908854 # [mm^2]
+SbM2 = Sb_mm2 * (1.e-06)    # [m^2]
+rmm = 61.121899469049126       # seed blade length: span [mm]
+rM = rmm * (0.001)  # [m]
+vtip = omega * rM
+rho = 1.225 # kg/m3
+vinf = 0
+CT = slicedThrust * ((rho*SbM2)**-1) * (((0.25*vinf**2)+((1/6)*vtip**2))**-1)
 
 
 ## Generate DataFrames
@@ -231,12 +226,6 @@ thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
                                 'Net Acceleration [m/s^2]' : aYMPS2,
                                 'Thrust Force [N]' : ThrustForce })
 
-Accelerations = pandas.DataFrame({'Time [s]' : aTime,
-                                  'aYMPS2 [m/s^2]' : aYMPS2,
-                                  'Polynomial [m/s^2]' : PsmoothAcceleration,
-                                  'Kalman1 [m/s^2]' : smoothAcceleration,
-                                  'Kalman2 [m/s^2]' : ksmoothAcceleration2 })
-
 
 ## Exporting to CSV
 # resultsPosDf.to_csv('Positions_03.csv')
@@ -244,51 +233,6 @@ Accelerations = pandas.DataFrame({'Time [s]' : aTime,
 # thrustDf.to_csv('AcclerationsAndThrust__003_01.csv')
 # Accelerations.to_csv('Accelerations with filters.csv')
 
-kSmootherAlpha = sm.KalmanSmoother( component='level',component_noise={'level':0.009})
-kSmootherAlpha.smooth(vY)
-kSmootherBeta = sm.KalmanSmoother( component='level',component_noise={'level':0.0009})
-kSmootherBeta.smooth(vY)
-specSmoother = sm.SpectralSmoother(smooth_fraction=0.5, pad_len=1)
-specSmoother.smooth(vY)
-polySmoother = sm.PolynomialSmoother(degree=5)
-polySmoother.smooth(vY)
-gSmoother = sm.GaussianSmoother(n_knots=100,sigma=0.01)
-gSmoother.smooth(vY)
-
-smoothResults = [kSmootherAlpha.smooth_data[0],
-                 kSmootherBeta.smooth_data[0],
-                 specSmoother.smooth_data[0],
-                 polySmoother.smooth_data[0],
-                 gSmoother.smooth_data[0]]
-
-print(smoothResults)
-
-velocitiesDframe = pandas.DataFrame({'vTime' : vTime,
-                                     'vY' : vY,
-                                     'Kalman Smoother' : smoothResults[0],
-                                     'Spectral Smoother' : smoothResults[2],
-                                     'Polynomial Smoother' : smoothResults[3],
-                                     'Gaussian Smoother' : smoothResults[4]})
-
-velocitiesDframe.to_csv('Smoothed Velocities.csv')
-
-
-#fig, axs = plt.subplots(5)
-#axs[0] = plt.plot(vTime, vY, color = 'silver')
-#axs[0] = plt.plot(vTime, smoothResults[0])
-#axs[1] = plt.plot(vTime, vY, color = 'silver')
-#axs[1] = plt.plot(vTime, smoothResults[1])
-#axs[2] = plt.plot(vTime, vY, color = 'silver')
-#axs[2] = plt.plot(vTime, smoothResults[2])
-#axs[3] = plt.plot(vTime, vY, color = 'silver')
-#axs[3] = plt.plot(vTime, vY, smoothResults[3])
-#axs[4] = plt.plot(vTime, vY, color = 'silver')
-#axs[4] = plt.plot(vTime, smoothResults[4])
-
-#plt.plot(vTime, vY, color = 'silver')
-#plt.plot(vTime, smoothResults[0])
-# plt.plot(vTime, smooth)
-#plt.show()
 
 
 '''
