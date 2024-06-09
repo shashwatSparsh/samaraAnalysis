@@ -136,22 +136,6 @@ smoothEccXY = smoother.smooth_data[0]
 
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
 
-## Omega Computation (rotational velocity)
-peaks2, _ = find_peaks(xNorm, prominence=1)     
-timeDifference = np.zeros(peaks2.size - 1)
-
-for i in range(timeDifference.size):
-    currTimeIndex = peaks2[i]
-    nextTimeIndex = peaks2[i+1]
-    timeDifference[i] = tNorm[nextTimeIndex]-tNorm[currTimeIndex]
-
-xNormPeaks = xNorm[peaks2]
-
-periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]])
-RPS = 1/periodT
-omega = RPS * 2 * np.pi
-# print(omega)
-
 
 ## Computing Velocity in m/s
 # Thesis Page 17 figure 2.5 for calibration and unit conversion
@@ -177,20 +161,38 @@ aTime = vTime[:-1]
 # Fnet = m*a = m*g - Thrust <=> Thrust = m*g - m*a <=> Thrust = m*(g-a)
 # note: a = a_net
 #ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
-#ThrustForce = massSlugs * (ThrustAccelerationIPS2 * IPS2toFtS2)
-# gIPS2 = 386.08856
-# IPS2toFtS2 = 0.0833333
-# gramsToSlugs = 6.85218e-5
-# massSlugs = massGrams * gramsToSlugs
-
 g = 9.81 # m/s^2
-massGrams = 0.4 # temporarily hard coded for seed three test case
-massKg = massGrams * (10^(-3))
-ThrustForce = massKg * (-1 * (g - aYMPS2))
+massGrams = 0.4                     # [g] temporarily hard coded for seed three test case
+massKg = massGrams / (1000)         # [kg] 
+ThrustForce = massKg * (g - aYMPS2) # [kg*m/s^2] = [N]
+
+
+# Take the Last 25 Values from the Thrust Computation because they are steady state
 start = ThrustForce.size - 25
 stop = ThrustForce.size
 step = 1
 slicedThrust = ThrustForce[start:stop:step]
+
+#print(g-aYMPS2[start:stop:step])
+#print("Accelerations are", aYMPS2[start:stop:step])
+#print("SlicedThrust Values are", slicedThrust)
+
+#print(ThrustForce)
+
+## Omega Computation (rotational velocity)
+peaks2, _ = find_peaks(xNorm, prominence=1)     
+timeDifference = np.zeros(peaks2.size - 1)
+
+for i in range(timeDifference.size):
+    currTimeIndex = peaks2[i]
+    nextTimeIndex = peaks2[i+1]
+    timeDifference[i] = tNorm[nextTimeIndex]-tNorm[currTimeIndex]
+
+xNormPeaks = xNorm[peaks2]
+
+periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]]) # [s]
+#rps = 1/periodT
+omega = (1/periodT) * 2 * np.pi
 
 ## Computing Thrust Coefficient
 # Source: https://commons.erau.edu/cgi/viewcontent.cgi?article=1427&context=ijaaa
@@ -200,17 +202,29 @@ slicedThrust = ThrustForce[start:stop:step]
 # rho = density
 # CL = Coefficient of Lift -> CT = Coefficient of Thrust
 # Sb = Total Blade Area = Elipse Area?
+
+Sb_mm2 = 1168.7016962908854 # [mm^2] Wetted Surface Area [mm^2]
+SbM2 = Sb_mm2 * (1.e-06)    # [m^2]
+rmm = 61.121899469049126    # [mm] seed blade length: span
+rM = rmm * (0.001)          # [m]
+vtip = omega * rM           # [m/s]
+rho = 1.225                 # kg/m3
+vinf = 0
+
 # Based on the fact that Thrust has already been computed, Equation needs to be reformatted
 # CL = CT = T * ((rho*Sb)^-1) * (((0.25*vinf^2)+((1/6)*vtip^2))^-1)
-Sb_mm2 = 1168.7016962908854 # [mm^2]
-SbM2 = Sb_mm2 * (1.e-06)    # [m^2]
-rmm = 61.121899469049126       # seed blade length: span [mm]
-rM = rmm * (0.001)  # [m]
-vtip = omega * rM
-rho = 1.225 # kg/m3
-vinf = 0
-CT = slicedThrust * ((rho*SbM2)**-1) * (((0.25*vinf**2)+((1/6)*vtip**2))**-1)
+# CT = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip^2))
+thrustCoeffList = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip*vtip))
+avgThrustCoeff = np.average(thrustCoeffList)
 
+## Computing Torque Coefficient
+mjrAxisLength = rM  # [m]
+ellipseArea = SbM2  # [m^2]
+# Area of Ellipse Equation: A = pi*a*b == b = A / (pi*a)
+# b = minorAxisLength/2, a = majorAxisLength/2
+a = mjrAxisLength * 0.5
+b = ellipseArea / (np.pi * a)
+#Icm = massKg * ( ())
 
 ## Generate DataFrames
 resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
