@@ -227,7 +227,10 @@ omega = averageThetaDot
 #thetaDotDiff = np.diff(thetaDot)
 #timeDiff = np.diff(steadyStateTimeStamps)
 thetaDoubleDot = np.diff(thetaDot)/np.diff(steadyStateTimeStamps)
-
+print(thetaDot)
+print(averageThetaDot)
+print(thetaDoubleDot)
+print(np.average(thetaDoubleDot))
 
 ## Computing Thrust Coefficient
 # Source: https://commons.erau.edu/cgi/viewcontent.cgi?article=1427&context=ijaaa
@@ -253,8 +256,10 @@ thrustCoeffList = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip*vtip))
 avgThrustCoeff = np.average(thrustCoeffList)
 
 ## Computing Torque Coefficient
-# Source: See Above
-# Equation: Q = (0.5*rho*(v_tip^2)*Sb*D)
+# Source: http://web.mit.edu/16.unified/www/FALL/thermodynamics/notes/node86.html#SECTION06374200000000000000
+# Equation Old: Q = (0.5*rho*(v_tip^2)*Sb*D)
+# Equation New: Q = Cq * rho * vtip^2 * D^5
+# D:= Diameter of prop = 2*rM
 # Identify Geometric Values
 # Major Axis Length b is the span of the blade
 mjrAxisLength = rM  # [m]
@@ -268,13 +273,16 @@ minorAxisLength = minorRadius * 2
 
 # Moment of Inertia along major Axis and Center of Mass
 Icm = (massKg/4) * (np.square(majorRadius) + np.square(minorRadius))
-# Parallel Access Theorem
+# Parallel Axis Theorem
 # Irotation reflects the moment of inertia of the seed as it is an ellipse rotating about the tip of the major axis
 Irotation = Icm + (np.square(majorRadius)*massKg)
 # Torque = Q = I * alpha = Irotation * thetaDoubleDot
 Torque = Irotation * thetaDoubleDot
 
-## Coefficient of Torque ????
+# Reformatting Torque Equation
+# Cq = Q/ (rho * vtip^2 * D^5)
+torqueCoeffList = Torque / (rho*np.square(vtip)*np.power(rM,5))
+print(torqueCoeffList)
 
 
 
