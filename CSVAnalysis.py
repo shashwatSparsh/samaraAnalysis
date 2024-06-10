@@ -168,10 +168,11 @@ ThrustForce = massKg * (g - aYMPS2) # [kg*m/s^2] = [N]
 
 
 # Take the Last 25 Values from the Thrust Computation because they are steady state
-start = ThrustForce.size - 25
-stop = ThrustForce.size
-step = 1
-slicedThrust = ThrustForce[start:stop:step]
+thrustValS = 25 # Seed 3
+startThrust = ThrustForce.size - thrustValS
+stopThrust = ThrustForce.size
+stepThrust = 1
+slicedThrust = ThrustForce[startThrust:stopThrust:stepThrust]
 
 #print(g-aYMPS2[start:stop:step])
 #print("Accelerations are", aYMPS2[start:stop:step])
@@ -180,19 +181,53 @@ slicedThrust = ThrustForce[start:stop:step]
 #print(ThrustForce)
 
 ## Omega Computation (rotational velocity)
+# Peaks 2 is the indexes of the peaks -- Use with XNorm to find Peak value and tNorm to find time value
 peaks2, _ = find_peaks(xNorm, prominence=1)     
 timeDifference = np.zeros(peaks2.size - 1)
 
-for i in range(timeDifference.size):
-    currTimeIndex = peaks2[i]
-    nextTimeIndex = peaks2[i+1]
-    timeDifference[i] = tNorm[nextTimeIndex]-tNorm[currTimeIndex]
+# Compute Periods--take the time stamp at each peak and subtract from next peak
+#for i in range(timeDifference.size):
+#    currTimeIndex = peaks2[i]
+#    nextTimeIndex = peaks2[i+1]
+#    #print('Current Time Index ', currTimeIndex)
+#   #print('Next Time Index ', nextTimeIndex)
+#    timeDifference[i] = tNorm[nextTimeIndex]-tNorm[currTimeIndex]
 
+# Actual Values @ peaks
 xNormPeaks = xNorm[peaks2]
+tNormPeaks = tNorm[peaks2]
+timeDifference = np.diff(tNormPeaks)
 
-periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]]) # [s]
-#rps = 1/periodT
-omega = (1/periodT) * 2 * np.pi
+# Slicing Peaks Data for only steady state conditions
+numSteadyState = 4  # For Seed 3
+
+# Steady State Periods
+startPeriod = timeDifference.size - numSteadyState
+stopPeriod = timeDifference.size
+stepPeriod = 1
+periods = timeDifference[startPeriod:stopPeriod:stepPeriod] # [s]
+# Steady State Time Stamps
+stepTime = 1
+steadyStateTimeStamps = tNormPeaks[tNormPeaks.size-numSteadyState:
+                                   tNormPeaks.size:
+                                       stepTime]
+
+    
+#periodT = np.average([timeDifference[timeDifference.size-1],timeDifference[timeDifference.size-2]]) # [s]
+# rps = 1/periodT
+# thetaDot = omega = (1/periodT) * 2 * np.pi
+
+# Compute Angular Speed in Rad/s -> 1 Rotation 2pi
+thetaDot = (1/periods) * 2 * np.pi
+# Average Angular Speed for vtip computation
+averageThetaDot = np.average(thetaDot)
+omega = averageThetaDot
+
+# Compute Angular Accleration in Rad/s^2 by finite differencing: delta omega / delta time
+#thetaDotDiff = np.diff(thetaDot)
+#timeDiff = np.diff(steadyStateTimeStamps)
+thetaDoubleDot = np.diff(thetaDot)/np.diff(steadyStateTimeStamps)
+
 
 ## Computing Thrust Coefficient
 # Source: https://commons.erau.edu/cgi/viewcontent.cgi?article=1427&context=ijaaa
@@ -218,14 +253,35 @@ thrustCoeffList = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip*vtip))
 avgThrustCoeff = np.average(thrustCoeffList)
 
 ## Computing Torque Coefficient
+# Source: See Above
+# Equation: Q = (0.5*rho*(v_tip^2)*Sb*D)
+# Identify Geometric Values
+# Major Axis Length b is the span of the blade
 mjrAxisLength = rM  # [m]
+# Ellipse Area is the Wetted Area
 ellipseArea = SbM2  # [m^2]
 # Area of Ellipse Equation: A = pi*a*b == b = A / (pi*a)
 # b = minorAxisLength/2, a = majorAxisLength/2
-a = mjrAxisLength * 0.5
-b = ellipseArea / (np.pi * a)
-#Icm = massKg * ( ())
+majorRadius = mjrAxisLength * 0.5
+minorRadius = ellipseArea / (np.pi * majorRadius)
+minorAxisLength = minorRadius * 2
 
+# Moment of Inertia along major Axis and Center of Mass
+Icm = (massKg/4) * (np.square(majorRadius) + np.square(minorRadius))
+# Parallel Access Theorem
+# Irotation reflects the moment of inertia of the seed as it is an ellipse rotating about the tip of the major axis
+Irotation = Icm + (np.square(majorRadius)*massKg)
+# Torque = Q = I * alpha = Irotation * thetaDoubleDot
+Torque = Irotation * thetaDoubleDot
+
+## Coefficient of Torque ????
+
+
+
+
+
+
+'''
 ## Generate DataFrames
 resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
                                  'xNorm' : xNorm,
@@ -239,7 +295,7 @@ vYSmoothDf = pandas.DataFrame({'Time [s]' : vTime,
 thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
                                 'Net Acceleration [m/s^2]' : aYMPS2,
                                 'Thrust Force [N]' : ThrustForce })
-
+'''
 
 ## Exporting to CSV
 # resultsPosDf.to_csv('Positions_03.csv')
