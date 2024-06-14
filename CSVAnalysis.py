@@ -227,10 +227,10 @@ omega = averageThetaDot
 #thetaDotDiff = np.diff(thetaDot)
 #timeDiff = np.diff(steadyStateTimeStamps)
 thetaDoubleDot = np.diff(thetaDot)/np.diff(steadyStateTimeStamps)
-print(thetaDot)
-print(averageThetaDot)
-print(thetaDoubleDot)
-print(np.average(thetaDoubleDot))
+#print(thetaDot)
+#print(averageThetaDot)
+#print(thetaDoubleDot)
+#print(np.average(thetaDoubleDot))
 
 ## Computing Thrust Coefficient
 # Source: https://commons.erau.edu/cgi/viewcontent.cgi?article=1427&context=ijaaa
@@ -276,16 +276,18 @@ Icm = (massKg/4) * (np.square(majorRadius) + np.square(minorRadius))
 # Parallel Axis Theorem
 # Irotation reflects the moment of inertia of the seed as it is an ellipse rotating about the tip of the major axis
 Irotation = Icm + (np.square(majorRadius)*massKg)
-# Torque = Q = I * alpha = Irotation * thetaDoubleDot
+# Torque = Q = I * alpha => Irotation * thetaDoubleDot
 Torque = Irotation * thetaDoubleDot
 
 # Reformatting Torque Equation
 # Cq = Q/ (rho * vtip^2 * D^5)
 torqueCoeffList = Torque / (rho*np.square(vtip)*np.power(rM,5))
-print(torqueCoeffList)
 
-
-
+print("Theta Dot = ", thetaDot)
+print("Average Theta Dot = ", averageThetaDot)
+print("Theta Double Dot = ", thetaDoubleDot)
+print("Average Theta Double Dot = ", np.average(thetaDoubleDot))
+print("Torque Coefficient List = ", torqueCoeffList)
 
 
 
