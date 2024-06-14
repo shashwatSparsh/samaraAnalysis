@@ -11,8 +11,8 @@ import numpy as np
     # handled by sa.vidAnalysis.analyze()
 
 # set ID list
-ids = (3,7,47)
-
+#ids = (3,6,47)
+ids = (6, 3)
 # set date video was taken
 date = 20230427
 

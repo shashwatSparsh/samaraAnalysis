@@ -14,10 +14,12 @@ from scipy.signal import find_peaks
 '''
 ,id,mass,area,loading,span,chord,aspect
 3,0.4,1168.7016962908854,342.2806703109598,61.121899469049126,24.83221218349697,47.0639380678127
+6,0.7,1522.2761139517897,459.86532507739935,74.06287225946649,27.060777530154667,56.25396802643494
+47,0.6,941.1195844493143,637.5767861117292,59.12029666385135,20.89870341532939,45.0324388908737
 '''
 
 
-id = 3
+id = 47
 date = '20230427'
 
 idText = 'text'
@@ -162,13 +164,14 @@ aTime = vTime[:-1]
 # note: a = a_net
 #ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
 g = 9.81 # m/s^2
-massGrams = 0.4                     # [g] temporarily hard coded for seed three test case
-massKg = massGrams / (1000)         # [kg] 
+massGrams47 = 0.6                     # [g] temporarily hard coded for seed three test case
+massGrams6 = 0.7
+massKg = massGrams47 / (1000)         # [kg] 
 ThrustForce = massKg * (g - aYMPS2) # [kg*m/s^2] = [N]
 
 
 # Take the Last 25 Values from the Thrust Computation because they are steady state
-thrustValS = 25 # Seed 3
+thrustValS = 10 # Seed 3
 startThrust = ThrustForce.size - thrustValS
 stopThrust = ThrustForce.size
 stepThrust = 1
@@ -244,16 +247,24 @@ thetaDoubleDot = np.diff(thetaDot)/np.diff(steadyStateTimeStamps)
 Sb_mm2 = 1168.7016962908854 # [mm^2] Wetted Surface Area [mm^2]
 SbM2 = Sb_mm2 * (1.e-06)    # [m^2]
 rmm = 61.121899469049126    # [mm] seed blade length: span
-rM = rmm * (0.001)          # [m]
+rmm47 = 59.12029666385135     # [mm]
+#rmm6 = 74.06287225946649
+rM = rmm47 * (0.001)          # [m]
 vtip = omega * rM           # [m/s]
 rho = 1.225                 # kg/m3
 vinf = 0
 
+DiskArea = np.pi*rM*rM          # [m^2]
+omegaRM = omega*rM
+
 # Based on the fact that Thrust has already been computed, Equation needs to be reformatted
 # CL = CT = T * ((rho*Sb)^-1) * (((0.25*vinf^2)+((1/6)*vtip^2))^-1)
 # CT = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip^2))
-thrustCoeffList = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip*vtip))
+#thrustCoeffList = slicedThrust * (1/(rho*SbM2)) * (1/((1/6)*vtip*vtip))
+thrustCoeffList = slicedThrust * (1/(rho*(omegaRM)*(omegaRM)*(DiskArea)))
 avgThrustCoeff = np.average(thrustCoeffList)
+print("Thrust Coefficient List: ", thrustCoeffList)
+print("Average Thrust Coeff", avgThrustCoeff)
 
 ## Computing Torque Coefficient
 # Source: http://web.mit.edu/16.unified/www/FALL/thermodynamics/notes/node86.html#SECTION06374200000000000000
@@ -283,11 +294,11 @@ Torque = Irotation * thetaDoubleDot
 # Cq = Q/ (rho * vtip^2 * D^5)
 torqueCoeffList = Torque / (rho*np.square(vtip)*np.power(rM,5))
 
-print("Theta Dot = ", thetaDot)
-print("Average Theta Dot = ", averageThetaDot)
-print("Theta Double Dot = ", thetaDoubleDot)
-print("Average Theta Double Dot = ", np.average(thetaDoubleDot))
-print("Torque Coefficient List = ", torqueCoeffList)
+#print("Theta Dot = ", thetaDot)
+#print("Average Theta Dot = ", averageThetaDot)
+#print("Theta Double Dot = ", thetaDoubleDot)
+#print("Average Theta Double Dot = ", np.average(thetaDoubleDot))
+#print("Torque Coefficient List = ", torqueCoeffList)
 
 
 
@@ -315,8 +326,10 @@ thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
 
 
 
-'''
+
 plt.plot(aTime, aYMPS2, color='silver', label='Acceleration')
+plt.show()
+'''
 plt.plot(aTime, ksmoothAcceleration2, color='blue', linestyle='--', label='Kalman 2 Smoothing')
 plt.plot(aTime, smoothAcceleration, color='green', linestyle='dotted', label='Kalman Smoothing')
 plt.plot(aTime, PsmoothAcceleration, color='red', linestyle='-.', label='Polynomial Smoothing')
