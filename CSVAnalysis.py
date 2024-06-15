@@ -193,6 +193,7 @@ stepThrust = 1
 slicedThrust = ThrustForce[startThrust:stopThrust:stepThrust]
 evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 
+
 ''' Debugging
 #print(g-aYMPS2[start:stop:step])
 #print("Accelerations are", aYMPS2[start:stop:step])
@@ -204,16 +205,23 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 # Peaks 2 is the indexes of the peaks -- Use with xNorm to find Peak value and tNorm to find time value
 peaks2, _ = find_peaks(xNorm, prominence = 1)     
 timeDifference = np.zeros(peaks2.size - 1)
-print(timeDifference)
+#print(timeDifference)
 # Actual Values @ peaks
 xNormPeaks = xNorm[peaks2]
 tNormPeaks = tNorm[peaks2]
 # Compute Time Difference between each tNorm Peaks Value -- dektaT [s]
 timeDifference = np.diff(tNormPeaks)    # [s]
+negNorm = xNorm * -1
+peaks3, _ = find_peaks(negNorm, prominence = 0.01)
+xNormPeaksNegative = xNorm[peaks3]
+tNormPeaksNegative = tNorm[peaks3]
+timeDifference = tNormPeaksNegative[tNormPeaksNegative.size-2] - tNormPeaks
+periodForSeed3 = timeDifference
 
 # Slicing Peaks Data for only steady state conditions
-numSteadyState = 4  # of steady state rotations
+numSteadyState = 1  # of steady state rotations
 
+'''
 # Steady State Periods
 startPeriod = timeDifference.size - numSteadyState
 stopPeriod = timeDifference.size
@@ -224,12 +232,15 @@ stepTime = 1
 steadyStateTimeStamps = tNormPeaks[tNormPeaks.size-numSteadyState:
                                    tNormPeaks.size:
                                        stepTime]
-
+'''
+periods = periodForSeed3 * 2    
+    
 # Compute Angular Speed in Rad/s -> 1 Rotation 2pi
 thetaDot = (1/periods) * 2 * np.pi
 # Average Angular Speed for vtip computation
-averageThetaDot = np.average(thetaDot)
-omega = averageThetaDot
+#averageThetaDot = np.average(thetaDot)
+#omega = averageThetaDot
+omega = thetaDot
 
 ## Computing Thrust Coefficient
 # Source: https://scienceworld.wolfram.com/physics/ThrustCoefficient.html
@@ -253,8 +264,11 @@ omegaRM = omega*rM              # [m/s]
 
 thrustCoeffList = slicedThrust * (1/(rho*(omegaRM)*(omegaRM)*(DiskArea)))
 avgThrustCoeff = np.average(thrustCoeffList)
-
+avgThrust = np.average(slicedThrust)
 print("Evaluation Duration: ", evaluationDuration)
+print("Average Thrust: ", avgThrust)
+print("Average Omega: ", omega)
+
 #print("Thrust Coefficient List: ", thrustCoeffList)
 #print("Average Thrust Coeff: ", avgThrustCoeff)
 
@@ -282,5 +296,8 @@ thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
 # Accelerations.to_csv('Accelerations with filters.csv')
 
 
-plt.plot(aTime, aYMPS2, color='silver', label='Acceleration')
+plt.plot(tNorm, xNorm)
+plt.title(label=' Seed 6 xNorm vs Time')
+plt.xlabel("Time [s]")
+plt.ylabel("Normalized X Position")
 plt.show()
