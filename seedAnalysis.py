@@ -24,6 +24,9 @@ class vidAnalysis:
         self.name = filename
         self.reducedName = filename[15:-4]
 
+        #print(self.name)
+        
+
         # filename = path location of file
         self.cap = cv2.VideoCapture(filename)
 

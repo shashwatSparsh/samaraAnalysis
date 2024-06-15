@@ -16,6 +16,9 @@ ids = (6, 3)
 # set date video was taken
 date = 20230427
 
+## NOTE: PUT VIDEO FILE IN TEST FOLDER NOT DATA FOLDER, VIDEO WILL BE COPIED THERE EVENTUALLY
+
+'''
 # start looping through IDs
 for id in ids:
     id = int(id)
@@ -53,8 +56,32 @@ for id in ids:
 
     # reanalyze video, but for bottom view
     vid.analyze(lower,upper,lower2,upper2,'bottom',date)
+'''
 
+filename = '20230427_Tests/006 Drop.mp4'
 
+# initialize vidAnalysis object
+vid = sa.vidAnalysis(filename)
 
+# set HSV range values for front view
+lower = (0, 0, 0)
+upper = (75, 95*255/100, 95*255/100)
+
+lower2= (210/2,0,0)
+upper2 = (180, 95*255/100, 95*255/100)
+
+# run function to split and analyze front view, then restart video
+vid.analyze(lower,upper,lower2,upper2,'front',date)
+vid.reopen()
+
+# set HSV range for bottom view
+lower = (195/2,0,50*255/100)
+upper = (360/2,55*255/100,80*255/100)
+
+lower2 = (0,0,50*255/100)
+upper2 = (150/2,55*255/100,80*255/100)
+
+# reanalyze video, but for bottom view
+vid.analyze(lower,upper,lower2,upper2,'bottom',date)
 
 
