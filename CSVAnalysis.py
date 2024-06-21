@@ -203,7 +203,28 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 
 ## Computing Rotational Velocity: Omega
 # Peaks 2 is the indexes of the peaks -- Use with xNorm to find Peak value and tNorm to find time value
-peaks2, _ = find_peaks(xNorm, prominence = 1)     
+peaks2, _ = find_peaks(xNorm, prominence = 1)
+
+# Linear Interpolation to find the time when xNorm is last Zero
+LXNGZ = .0102342            # Last XNorm Value Greater than Zero
+NXNLZ = -0.013871           # Next XNorm Value Less than Zero
+LXNGZTime = 0.349397        # Corresponding Time Stamp
+NXNLZTime = 0.349974        # Next TimeStamp
+
+# Online Linear Interpolator
+initialTimeStamp = 0.34969951702537216
+
+# Compute Time Stamp of Negative Peak
+negNorm = xNorm * -1
+peaks3, _ = find_peaks(negNorm, prominence = 0.01)
+maxNegXNormEnd = xNorm[peaks3[peaks3.size-2]]
+lowIndex = np.where(xNorm == maxNegXNormEnd)
+finalTimeStamp = tNorm[lowIndex]
+period = (finalTimeStamp - initialTimeStamp) * 4
+
+
+
+'''
 timeDifference = np.zeros(peaks2.size - 1)
 #print(timeDifference)
 # Actual Values @ peaks
@@ -217,6 +238,7 @@ xNormPeaksNegative = xNorm[peaks3]
 tNormPeaksNegative = tNorm[peaks3]
 timeDifference = tNormPeaksNegative[tNormPeaksNegative.size-2] - tNormPeaks
 periodForSeed3 = timeDifference
+'''
 
 # Slicing Peaks Data for only steady state conditions
 numSteadyState = 1  # of steady state rotations
@@ -233,10 +255,10 @@ steadyStateTimeStamps = tNormPeaks[tNormPeaks.size-numSteadyState:
                                    tNormPeaks.size:
                                        stepTime]
 '''
-periods = periodForSeed3 * 2    
+#periods = periodForSeed3 * 2    
     
 # Compute Angular Speed in Rad/s -> 1 Rotation 2pi
-thetaDot = (1/periods) * 2 * np.pi
+thetaDot = (1/period) * 2 * np.pi
 # Average Angular Speed for vtip computation
 #averageThetaDot = np.average(thetaDot)
 #omega = averageThetaDot
@@ -295,8 +317,20 @@ thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
 # thrustDf.to_csv('AcclerationsAndThrust__003_01.csv')
 # Accelerations.to_csv('Accelerations with filters.csv')
 
+zeroX = 0
+zeroT = initialTimeStamp
+
+lowestX = maxNegXNormEnd
+lowestT = finalTimeStamp 
 
 plt.plot(tNorm, xNorm)
+plt.plot(zeroT, zeroX, 'ro')
+plt.text(zeroT + .01, zeroX + .03, s = [initialTimeStamp])
+plt.plot(lowestT, lowestX, 'bo')
+plt.text(0.4, lowestX - .08, s = finalTimeStamp)
+plt.plot(tNorm[peaks2], xNorm[peaks2], 'go')
+plt.text(tNorm[peaks2] + .01, xNorm[peaks2], s = tNorm[peaks2])
+plt.grid()
 plt.title(label=' Seed 6 xNorm vs Time')
 plt.xlabel("Time [s]")
 plt.ylabel("Normalized X Position")
