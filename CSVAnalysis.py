@@ -231,6 +231,10 @@ thetaDot = (1/periods) * 2 * np.pi
 averageThetaDot = np.average(thetaDot)
 omega = averageThetaDot
 
+thetaAngles = np.fft.fft(xNorm)
+
+
+
 ## Computing Thrust Coefficient
 # Source: https://scienceworld.wolfram.com/physics/ThrustCoefficient.html
 # T = CT * 0.5 * rho * (omega*r)^2 * A
@@ -280,6 +284,14 @@ thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
 # vYSmoothDf.to_csv('Velocities_03IPS.csv')
 # thrustDf.to_csv('AcclerationsAndThrust__003_01.csv')
 # Accelerations.to_csv('Accelerations with filters.csv')
+
+
+## Next Steps
+# Extract the NormPosition for each seed and place into dataframe
+# Extract the LabFrame Trajectory for Z axis
+# Extract velocities and forces
+# Set up theta computation
+
 
 fig1, ax1 = plt.subplots(dpi=800, figsize=(12,8))
 ax1.plot(tNorm, xNorm, label='Normalized X Position')
