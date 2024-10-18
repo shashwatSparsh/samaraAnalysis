@@ -181,7 +181,7 @@ aTime = vTime[:-1]
 # ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
 
 g = 9.81                                # m/s^2
-massKg = massGrams6 / (1000)           # [kg] 
+massKg = massGrams3 / (1000)           # [kg] 
 ThrustForce = massKg * (g - aYMPS2)     # [kg*m/s^2] = [N]
 
 # Take the Last n Values from the Thrust Computation because they are steady state
@@ -245,7 +245,7 @@ thetaAngles = np.fft.fft(xNorm)
 # A:        Disk Area
 # A = pi * r^2
 
-rM = radiusmm6 * (0.001)       # [m]
+rM = radiusmm3 * (0.001)       # [m]
 vtip = omega * rM               # [m/s]
 rho = 1.225                     # kg/m3
 
@@ -261,24 +261,24 @@ print("Evaluation Duration: ", evaluationDuration)
 #print("Average Thrust Coeff: ", avgThrustCoeff)
 
 
-'''
+#
 ## Generate DataFrames
 resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
                                  'xNorm' : xNorm,
                                  'yNorm' : yNorm,
                                  'zNorm' : zNorm})
 
-vYSmoothDf = pandas.DataFrame({'Time [s]' : vTime,
-                               'Descent Velocity [m/s]' : vYsmoothMPS})
+#vYSmoothDf = pandas.DataFrame({'Time [s]' : vTime,
+#                               'Descent Velocity [m/s]' : vYsmoothMPS})
 
 
-thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
-                                'Net Acceleration [m/s^2]' : aYMPS2,
-                                'Thrust Force [N]' : ThrustForce })
-'''
+#thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
+#                                'Net Acceleration [m/s^2]' : aYMPS2,
+#                                'Thrust Force [N]' : ThrustForce })
+#'''
 
 ## Exporting to CSV
-# resultsPosDf.to_csv(f'{date}_Data/{idText}  Trajectory.csv')
+#resultsPosDf.to_csv(f'{date}_Data/{idText}  Trajectory.csv')
 # vYSmoothDf.to_csv(f'{date}_Data/{idText} Descent Velocity.csv')
 # thrustDf.to_csv(f'{date}_Data/{idText} Descent Acceleration.csv')
 # Accelerations.to_csv('Accelerations with filters.csv')
@@ -290,4 +290,13 @@ thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
 # Extract velocities and forces
 # Set up theta computation
 
+plt.plot(tNorm, xNorm, label='x Position')
+plt.plot(tNorm, yNorm, label='y Position')
+plt.plot(tNorm, zNorm, label='z Position')
+plt.title('Seed 3 Trajectory')
+plt.xlabel('Time [s]')
+plt.ylabel('Normalized Position')
+plt.legend(bbox_to_anchor=(1.05, 0), loc='upper left')
+plt.grid(True)
 
+plt.savefig('Seed 3 Trajectory.png', bbox_inches='tight', dpi=800)
