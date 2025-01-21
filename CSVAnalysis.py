@@ -141,20 +141,7 @@ smoothEccXY = smoother.smooth_data[0]
 '''
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
 
-
-## Seed Specific Information
-# Span in radius [mm] ID
-radiusmm3 = 61.121899469049126  # [mm]
-radiusmm6 = 74.06287225946649   
-radiusmm7 = 61.968094064523505
-radiusmm47 = 59.12029666385135
-# Masses [g]
-massGrams3 = 0.4                        # [g]
-massGrams6 = 0.7                        # [g]
-massGrams7 = 0.5                        # [g]
-massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
-
-
+''''Kinematic Response Computation'''
 ## Computing Velocity in m/s
 # Thesis Page 17 figure 2.5 for calibration and unit conversion
 # Multiply by conversion factor of 0.1 in/pixel * .0254m/in
@@ -174,6 +161,21 @@ aYMPS2 = np.diff(vYsmoothMPS) / np.diff(vTime)
 # Remove last value as there are n-2 Accelerations
 aTime = vTime[:-1]
 
+'''Dynamic Response Computation'''
+## Seed Specific Information
+# Span in radius [mm] ID
+radiusmm3 = 61.121899469049126  # [mm]
+radiusmm6 = 74.06287225946649   
+radiusmm7 = 61.968094064523505
+radiusmm47 = 59.12029666385135
+radii = [radiusmm3, radiusmm6, radiusmm7, radiusmm47]
+# Masses [g]
+massGrams3 = 0.4                        # [g]
+massGrams6 = 0.7                        # [g]
+massGrams7 = 0.5                        # [g]
+massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
+masses = [massGrams3, massGrams6, massGrams7, massGrams47]
+
 
 ## Computing Thrust Force
 # Fnet = m*a = m*g - Thrust <=> Thrust = m*g - m*a <=> Thrust = m*(g-a)
@@ -185,7 +187,7 @@ massKg = massGrams3 / (1000)           # [kg]
 ThrustForce = massKg * (g - aYMPS2)     # [kg*m/s^2] = [N]
 
 # Take the Last n Values from the Thrust Computation because they are steady state
-numEvals = 15
+numEvals = 4
 thrustValS = numEvals                                                 # Seed 3
 startThrust = ThrustForce.size - thrustValS
 stopThrust = ThrustForce.size
@@ -232,6 +234,10 @@ averageThetaDot = np.average(thetaDot)
 omega = averageThetaDot
 
 thetaAngles = np.fft.fft(xNorm)
+frequencyResponse = np.fft.rfftfreq(xNorm)
+print(frequencyResponse)
+plt.plot(frequencyResponse)
+plt.plot(thetaAngles)
 
 ## Computing Thrust Coefficient
 # Source: https://scienceworld.wolfram.com/physics/ThrustCoefficient.html
@@ -290,6 +296,7 @@ resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
 # Extract velocities and forces
 # Set up theta computation
 
+''''
 plt.plot(tNorm, xNorm, label='x Position')
 plt.plot(tNorm, yNorm, label='y Position')
 plt.plot(tNorm, zNorm, label='z Position')
@@ -300,3 +307,4 @@ plt.legend(bbox_to_anchor=(1.05, 0), loc='upper left')
 plt.grid(True)
 
 plt.savefig('Seed 3 Trajectory.png', bbox_inches='tight', dpi=800)
+'''
