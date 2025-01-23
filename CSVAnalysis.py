@@ -233,11 +233,28 @@ thetaDot = (1/periods) * 2 * np.pi
 averageThetaDot = np.average(thetaDot)
 omega = averageThetaDot
 
-thetaAngles = np.fft.fft(xNorm)
-frequencyResponse = np.fft.rfftfreq(xNorm)
-print(frequencyResponse)
-plt.plot(frequencyResponse)
-plt.plot(thetaAngles)
+## Analysing Frequency Response
+# Slice XNorm for only relevant steady-state data
+xNormTimeStepIndex = np.where(tNorm == tNormPeaks[0])
+xNormSliced = xNorm[xNormTimeStepIndex:]
+# Extract Compled Frequency Response
+complexFrequencyResponse = np.fft.fft(xNormSliced)
+# Take the Magnitude to get the "REAL" part of the result and normalize by number of samples
+frequencyResponse = np.abs(complexFrequencyResponse) / xNorm.size
+# Get Sample Frequencies (ie 1kHz, 100kHz, ...)
+timestep = tNorm[1]-tNorm[0]
+freq = np.fft.fftfreq(xNorm.size, d=timestep)
+freq = np.linspace(0, 10000, 100)
+
+fig, [ax1, ax2] = plt.subplots(nrows=2, ncols=1)
+ax1.plot(tNorm, xNorm)
+ax2.plot(frequencyResponse)
+
+plt.plot(freq)
+#frequencyResponse = np.fft.rfftfreq(xNorm)
+#print(frequencyResponse)
+#plt.plot(frequencyResponse)
+
 
 ## Computing Thrust Coefficient
 # Source: https://scienceworld.wolfram.com/physics/ThrustCoefficient.html
