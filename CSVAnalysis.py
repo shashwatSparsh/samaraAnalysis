@@ -251,6 +251,7 @@ ax1.plot(tNorm, xNorm)
 ax2.plot(frequencyResponse)
 
 plt.plot(freq)
+plt.show()
 #frequencyResponse = np.fft.rfftfreq(xNorm)
 #print(frequencyResponse)
 #plt.plot(frequencyResponse)
