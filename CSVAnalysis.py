@@ -1,3 +1,4 @@
+#%% Imports and other informational Data
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas
@@ -20,6 +21,7 @@ id,     mass,   area,               loading,            span,               chor
 '''
 
 
+#%% Setting ID to analyze specific Seed
 # Set ID to analyze a particular seed
 id = 3
 date = '20230427'
@@ -32,13 +34,18 @@ elif id >= 10 and id < 100:
     idText = f'0{int(id)}'
 elif id >= 100:
     idText = f'{int(id)}'
+    
 
 print(idText)
 
 # read in files
 dims = pandas.read_csv('sampleProperties.csv')
 
+#%% Process the data to get the positional vectors
 # front
+# Note, the "x" column in this actually refers to the Z position of the seed.
+# It is named x because the video frame is horizontal: in other words the z axis is horizontal
+# This is the same reaosn the vertical axis is called y
 data = pandas.read_csv(f'{date}_Data/{idText} Drop_front.csv', header = None)
 data.rename(columns = {0:'time',1:'x',2:'y',3:'angle',4:'major axis',5:'minor axis'},inplace=True)
 
@@ -58,9 +65,15 @@ yVec,zVec,thetaFront,quad = sa.vectorize_front(data['angle'])
 xVec,yVec2,alpha = sa.vectorize_bottom(dataB['angle'])
 
 # smooth variables
+# Define the smoother parameters
 smoother = sm.KalmanSmoother(component='level',component_noise={'level':0.1})
+# Smooth the data one vector at a time
 smoother.smooth(yVec)
+# Set the new Y positional data from the smoother object.
 smoothY = smoother.smooth_data[0]
+# Rinse and Repeat. Everytime the smoother is called, the old data is wiped
+# In other words, once smoother is used on the Z Vector, smoother.smooth_data[0]
+# no longer refers to yVector but now has been overwritten with zVector data.
 smoother.smooth(zVec)
 smoothZ = smoother.smooth_data[0]
 smoother.smooth(xVec)
@@ -73,6 +86,15 @@ smoothYpos = smoother.smooth_data[0]
 
 smoother2 = sm.KalmanSmoother(component='level',component_noise={'level':0.009})
 
+# Generate Data Frame of positional vectors post-smoothing
+positionalVectorsData = np.array(dataB[0], smoothX, smoothY, smoothZ)
+positionalColumnNames = ['Time',
+                         'smooth X Position',
+                         'smooth Y Position',
+                         'smooth Z Position']
+positionalDataFrame = pd.DataFrame(positionalVectorsData, positionalColumnNames)
+
+#%%
 # normalization to longer time series since data and dataB have different lengths
 tNorm,xNorm,yNorm,zNorm = sa.lengthMatch(data['time'],dataB['time'],smoothX,smoothY,smoothZ)
 _,xPos,yPos,zPos = sa.lengthMatch(data['time'],dataB['time'],dataB['x'],data['y'],data['x'])
