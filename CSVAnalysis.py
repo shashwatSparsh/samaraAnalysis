@@ -1,4 +1,8 @@
 #%% Imports and other informational Data
+
+# import os
+# os.chdir(path='samaraAnalysis')
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas
@@ -41,8 +45,8 @@ print(idText)
 # read in files
 dims = pandas.read_csv('sampleProperties.csv')
 
-#%% Process the data to get the positional vectors
-# front
+#%% Front View Analysis 
+# Process the data to get the positional vectors
 # Note, the "x" column in this actually refers to the Z position of the seed.
 # It is named x because the video frame is horizontal: in other words the z axis is horizontal
 # This is the same reaosn the vertical axis is called y
@@ -50,8 +54,12 @@ data = pandas.read_csv(f'{date}_Data/{idText} Drop_front.csv', header = None)
 data.rename(columns = {0:'time',1:'x',2:'y',3:'angle',4:'major axis',5:'minor axis'},inplace=True)
 
 # bottom
+# Read the Bottom View DataFrame
 dataB = pandas.read_csv(f'{date}_Data/{idText} Drop_bottom.csv', header = None)
+# Rename the Columns of the DataFrame
 dataB.rename(columns = {0:'time',1:'x',2:'y',3:'angle',4:'major axis',5:'minor axis'},inplace=True)
+# Extract the Time column from the bottom view
+timeB = dataB.iloc[:, 0];
 
 # angle output is defined clockwise, make counterclockwise
 data['angle'] = np.absolute(-data['angle']+180)
@@ -60,14 +68,14 @@ dataB['angle'] = dataB['angle']
 # get span of seed with id = id
 len = dims[dims['id'] == id]['span'].values[0]
 
-# create angle outputs
+# Getting Angles to compute orientation
 yVec,zVec,thetaFront,quad = sa.vectorize_front(data['angle'])
 xVec,yVec2,alpha = sa.vectorize_bottom(dataB['angle'])
 
-# smooth variables
+# Smothing Variables
 # Define the smoother parameters
 smoother = sm.KalmanSmoother(component='level',component_noise={'level':0.1})
-# Smooth the data one vector at a time
+# Smooth the data one vector at a time, in this case starting with the YVector
 smoother.smooth(yVec)
 # Set the new Y positional data from the smoother object.
 smoothY = smoother.smooth_data[0]
@@ -79,23 +87,24 @@ smoothZ = smoother.smooth_data[0]
 smoother.smooth(xVec)
 smoothX = smoother.smooth_data[0]
 
+# The Beta Angle is the frontTheta Angle Extracted
 beta = thetaFront
 
 smoother.smooth(data['x'])
 smoothYpos = smoother.smooth_data[0]
 
-smoother2 = sm.KalmanSmoother(component='level',component_noise={'level':0.009})
-
-# Generate Data Frame of positional vectors post-smoothing
-positionalVectorsData = np.array(dataB[0], smoothX, smoothY, smoothZ)
+# # Generate Data Frame of positional vectors post-smoothing
+positionalVectorsData = np.array([timeB, smoothX, smoothY, smoothZ])
 positionalColumnNames = ['Time',
-                         'smooth X Position',
-                         'smooth Y Position',
-                         'smooth Z Position']
-positionalDataFrame = pd.DataFrame(positionalVectorsData, positionalColumnNames)
+                          'smooth X Position',
+                          'smooth Y Position',
+                          'smooth Z Position']
+positionalDataFrame = pandas.DataFrame(positionalVectorsData, positionalColumnNames)
 
-#%%
-# normalization to longer time series since data and dataB have different lengths
+positionalDataFrame.to_csv('rawPositionalData.csv')
+
+#%% Data Normalization using eccentricities and Angle normalization
+# Normalization to longer time series since data and dataB have different lengths
 tNorm,xNorm,yNorm,zNorm = sa.lengthMatch(data['time'],dataB['time'],smoothX,smoothY,smoothZ)
 _,xPos,yPos,zPos = sa.lengthMatch(data['time'],dataB['time'],dataB['x'],data['y'],data['x'])
 
@@ -103,12 +112,13 @@ tNorm, alphaNorm, betaNorm, quadNorm = sa.lengthMatch(data['time'],dataB['time']
 _,majorAxisNorm,_,_ = sa.lengthMatch(data['time'],dataB['time'],dataB['major axis'],data['major axis'],data['minor axis'])
 #alpha,beta = sa.angleCorr(data['angle'],dataB['angle'])
 
-# more smoothing
+# Smooth out the alpha and beta norm angles using the smoother defined previously
 smoother.smooth(betaNorm)
 betaNormS = smoother.smooth_data[0]
 smoother.smooth(alphaNorm)
 alphaNormS = smoother.smooth_data[0]
 
+#%% Bottom View Analysis
 # create scale factor for bottom view using length of samara from dims
 mean = np.mean(majorAxisNorm[650:])
 conf95 = 2*np.std(majorAxisNorm[650:])
@@ -120,6 +130,8 @@ majorAxisNorm = [l*scaleFac for l in majorAxisNorm]
 
 #scaleFac = np.linspace(0.132*25.4,0.095*25.4,np.size(majorAxisNorm))
 #majorAxisNorm = [l*s for l,s in zip(majorAxisNorm,scaleFac)]
+
+smoother2 = sm.KalmanSmoother(component='level',component_noise={'level':0.009})
 
 # create x,y,z vector outputs for X_1
 XX,YY,ZZ,alphaTrue,betaTrue = sa.polar2cartesian(alphaNorm,betaNorm,majorAxisNorm,len)
@@ -134,13 +146,6 @@ smoothYY = smoother.smooth_data[0]
 smoother.smooth(ZZ)
 smoothZZ = smoother.smooth_data[0]
 
-# calculate descent speed
-vY = sa.descentSpeed(data['x'],data['time'])
-
-# smooth out the descent velocity
-smoother2.smooth(vY)
-vYsmooth = smoother2.smooth_data[0]
-
 # eccentricity
 eccYZ = sa.ecc(data['major axis'],data['minor axis'])
 eccXY = sa.ecc(dataB['major axis'],dataB['minor axis'])
@@ -154,59 +159,84 @@ smoother.smooth(eccXY)
 smoothEccXY = smoother.smooth_data[0]
 
 '''
+This Find Peaks Code did not appear to work correctly and has been depreciated. Fixing this code may offer some
+insight into possible future eccentricity tracking and optimization.
+
 # peaks
 # Error:   File "/Users/shashwatsparsh/Documents/GitHub/samaraAnalysis/seedAnalysis.py", line 826, in normalVector
 #    fX = PchipInterpolator(tOrient,xOrient, extrapolate=True)
 # Future Fix
+# The following two lines are the broken pieces of code: 
 # minima,maxima,tOrient,xOrient,yOrient,zOrient,tCont,xCont,yCont,zCont = sa.normalVector(tNorm,smoothEccYZ,smoothXX,smoothYY,smoothZZ)
-#ecc = np.sqrt(1-data['minor axis']**2/data['major axis']**2)
+# ecc = np.sqrt(1-data['minor axis']**2/data['major axis']**2)
 '''
 # With these variables, plots can be created. This whole setup can also be put into a for loop in order to generate plots of many things
 
-''''Kinematic Response Computation'''
+#%% Kinematic Response Analysis
+
+# Calculate descent speed
+vY = sa.descentSpeed(data['x'],data['time'])
+
+# Smooth out the descent velocity
+# Note: There should be a better smoothing function created here that is better suited to remove noise
+# using smoother2 is a stop-gap measure
+smoother2.smooth(vY)
+vYsmooth = smoother2.smooth_data[0]
+
 ## Computing Velocity in m/s
 # Thesis Page 17 figure 2.5 for calibration and unit conversion
 # Multiply by conversion factor of 0.1 in/pixel * .0254m/in
-conversionFactorFront = 0.1 # in/pixel
-conversionFactorBot = 0.045 # in/pixel
-inchesToMeters = 0.0254
+# This conversion factor is based on Kai's original dataset
+# Shashwat Sparsh Data set uses the following conversion factor: 
+# Make sure you remember to put a TSQUARE in the camera view frame and take a snapshot to get this value
 
+# Kais Conversion Factor
+# Do not delete this conversion factor from the code, it is necessary to analyze legacy data.
+Kfront = 0.1 # in/pixel
+Kbot = 0.045 # in/pixel
+
+# Set to appropriate Conversion Factor
+conversionFactorFront = Kfront
+conversionFactorBot = Kbot
+# Convert from inches to Meters
+inchesToMeters = 0.0254
+# Convert to m/s
 vYsmoothMPS = vYsmooth * conversionFactorFront * inchesToMeters
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
+# Two arrays of descent velocity and descent time have been generated
 
+#%% Dynamic Response Computation
 
 ## Computing Acceleration in m/s^2
+# use numpy backward differencing function on on vYsmoothMPS and vTime
 # a = delta V / delta T
-# use numpy differencing function on on vYsmoothMPS and vTime
 aYMPS2 = np.diff(vYsmoothMPS) / np.diff(vTime)
-# Remove last value as there are n-2 Accelerations
+# Remove last value as there are n-2 Accelerations compared to positions
 aTime = vTime[:-1]
 
-'''Dynamic Response Computation'''
+## The following portion should be automated in the future to reference the seed properties csv file and index based on the id set.
+# Currently the values are hard-coded for simplicity.
 ## Seed Specific Information
 # Span in radius [mm] ID
-radiusmm3 = 61.121899469049126  # [mm]
-radiusmm6 = 74.06287225946649   
-radiusmm7 = 61.968094064523505
-radiusmm47 = 59.12029666385135
-radii = [radiusmm3, radiusmm6, radiusmm7, radiusmm47]
+spanmm3 = 61.12  # [mm]
+spanmm6 = 74.06   
+spanmm7 = 61.96
+spanmm47 = 59.12
+radii = np.array([spanmm3, spanmm6, spanmm7, spanmm47])
 # Masses [g]
 massGrams3 = 0.4                        # [g]
 massGrams6 = 0.7                        # [g]
 massGrams7 = 0.5                        # [g]
 massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
-masses = [massGrams3, massGrams6, massGrams7, massGrams47]
+massesKg = (1/1000)*np.array([massGrams3, massGrams6, massGrams7, massGrams47])
 
-
-## Computing Thrust Force
+## Computing Average Thrust Force
 # Fnet = m*a = m*g - Thrust <=> Thrust = m*g - m*a <=> Thrust = m*(g-a)
 # note: a = a_net
 # ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
-
-g = 9.81                                # m/s^2
-massKg = massGrams3 / (1000)           # [kg] 
-ThrustForce = massKg * (g - aYMPS2)     # [kg*m/s^2] = [N]
+g = 9.81                                    # Gravitational Acceleration [m/s^2]
+ThrustForce = massesKg[0] * (g - aYMPS2)    # [kg*m/s^2] = [N]
 
 # Take the Last n Values from the Thrust Computation because they are steady state
 numEvals = 4
@@ -223,12 +253,54 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 #print("SlicedThrust Values are", slicedThrust)
 #print(ThrustForce)
 '''
+#%% Computing Disk Loading and Dynamic Pressure to estimate the CL at the end of transition
 
-## Computing Rotational Velocity: Omega
-# Peaks 2 is the indexes of the peaks -- Use with xNorm to find Peak value and tNorm to find time value
+# Transition Completion is the instant the steady-state rotation begins
+# It is abberiviated in the code as: TC
+
+transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
+transitionTime = tNorm[transitionTimeIndex]
+coningAngleTC = betaNormS[transitionTimeIndex]
+descentVelocityTC = vYsmoothMPS[transitionTimeIndex]
+
+# Air Density
+rho = 1.225 #kg/m^3
+
+# Based on the Niu Atkins Intrinsic Equilibrium of Samara Auto-rotation, the CL can be approximated
+# by balancing the disk loading and the dynamic pressure
+# EQN: 1/CL ~ 0.5rhoVd^2/delta where delta is disk-loading and Vd is descent velocity
+
+
+# Dynamic Pressure for a propeller is evaluated using the following:
+# https://www.grc.nasa.gov/WWW/k-12/VirtualAero/BottleRocket/airplane/propth.html
+# https://www.grc.nasa.gov/www/k-12/airplane/propth.html
+# As the free-stream velocity is zero in this test, the room has still air, the V0 = 0;
+# The only velocity experienced by the samara in the direction of the disk loading (i.e. normal to the disk) is descent Velocity
+dynamicPressureTC = 0.5*rho*np.square(descentVelocityTC)
+
+# The Diskloading is a function of the coning angle of the seed as greater coning angles reduce the area of disk generating during the spin
+#      *
+#  ___*   Steeper angle of the blade indicated by  * with respect to the horizontal indicated ___
+#      **
+# ___**   Shallower angle of the blade indicated by * with respect to he horizontal indicated ___
+# Thus the radius of the disk is equal to span * cos(coningAngle) == span*cos(betaNormS)
+
+# Disk Area: A = pi * (span*cos(betaNormS))^2
+# Convert the span to meters from mm
+DiskArea = np.pi * np.square((radii[0] * (1/1000)) * np.cos(np.deg2rad(coningAngleTC)))
+
+# Disk Loading = mg/A
+diskLoading = (massesKg[0]*g)/DiskArea
+
+CL_TC = diskLoading/dynamicPressureTC
+
+
+#%% Evaluating Rotational Speed
+
 peaks2, _ = find_peaks(xNorm, prominence = 1)     
 timeDifference = np.zeros(peaks2.size - 1)
-print(timeDifference)
+#print(timeDifference)
+
 # Actual Values @ peaks
 xNormPeaks = xNorm[peaks2]
 tNormPeaks = tNorm[peaks2]
@@ -236,7 +308,7 @@ tNormPeaks = tNorm[peaks2]
 timeDifference = np.diff(tNormPeaks)    # [s]
 
 # Slicing Peaks Data for only steady state conditions
-numSteadyState = 6  # of steady state rotations
+numSteadyState = 2 # of steady state rotations to consider
 
 # Steady State Periods
 startPeriod = timeDifference.size - numSteadyState
@@ -255,10 +327,14 @@ thetaDot = (1/periods) * 2 * np.pi
 averageThetaDot = np.average(thetaDot)
 omega = averageThetaDot
 
+#%% Using FFT
+
 ## Analysing Frequency Response
 # Slice XNorm for only relevant steady-state data
-xNormTimeStepIndex = np.where(tNorm == tNormPeaks[0])
-xNormSliced = xNorm[xNormTimeStepIndex:]
+xNormTimeStepIndex = int(np.where(tNorm == tNormPeaks[0])[0])
+# xNormTimeStepIndex = tNorm.index(tNormPeaks[0])
+
+xNormSliced = xNorm[xNormTimeStepIndex:None]
 # Extract Compled Frequency Response
 complexFrequencyResponse = np.fft.fft(xNormSliced)
 # Take the Magnitude to get the "REAL" part of the result and normalize by number of samples

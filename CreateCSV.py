@@ -1,4 +1,4 @@
-import seedAnalysis as sa
+import seedAnalysis.py as sa
 import numpy as np
 
 ## SCRIPT for creating CSV from raw video data
