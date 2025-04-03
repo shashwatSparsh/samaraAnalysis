@@ -15,6 +15,9 @@ from scipy.signal import find_peaks
 # lots of refinement could be done and there are a lot of unnecessary lines 
 # but this will serve as an explanation of my steps
 
+# Air Density
+rho = 1.225 #kg/m^3
+
 # Seed Data
 '''
 id,     mass,   area,               loading,            span,               chord,              aspect
@@ -23,6 +26,25 @@ id,     mass,   area,               loading,            span,               chor
 7,      0.5,    1050.1453453453453, 476.1531365313653,  61.968094064523505, 21.986914804819467, 47.762287463594326
 47,     0.6,    941.1195844493143,  637.5767861117292,  59.12029666385135,  20.89870341532939,  45.0324388908737
 '''
+
+## The following portion should be automated in the future to reference the seed properties csv file and index based on the id set.
+# Currently the values are hard-coded for simplicity.
+## Seed Specific Information
+# Span in radius [mm] ID
+spanmm3 = 61.12  # [mm]
+spanmm6 = 74.06   
+spanmm7 = 61.96
+spanmm47 = 59.12
+radii = .001*np.array([spanmm3, spanmm6, spanmm7, spanmm47])
+# Masses [g]
+massGrams3 = 0.4                        # [g]
+massGrams6 = 0.7                        # [g]
+massGrams7 = 0.5                        # [g]
+massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
+massesKg = .001*np.array([massGrams3, massGrams6, massGrams7, massGrams47])
+
+currentSpan = radii[3]
+currentMass = massesKg[3]
 
 
 #%% Setting ID to analyze specific Seed
@@ -93,15 +115,15 @@ beta = thetaFront
 smoother.smooth(data['x'])
 smoothYpos = smoother.smooth_data[0]
 
-# # Generate Data Frame of positional vectors post-smoothing
-positionalVectorsData = np.array([timeB, smoothX, smoothY, smoothZ])
-positionalColumnNames = ['Time',
-                          'smooth X Position',
-                          'smooth Y Position',
-                          'smooth Z Position']
-positionalDataFrame = pandas.DataFrame(positionalVectorsData, positionalColumnNames)
+# # # Generate Data Frame of positional vectors post-smoothing
+# positionalVectorsData = np.array([timeB, smoothX, smoothY, smoothZ])
+# positionalColumnNames = ['Time',
+#                           'smooth X Position',
+#                           'smooth Y Position',
+#                           'smooth Z Position']
+# positionalDataFrame = pandas.DataFrame(positionalVectorsData, positionalColumnNames)
 
-positionalDataFrame.to_csv('rawPositionalData.csv')
+# positionalDataFrame.to_csv('rawPositionalData.csv')
 
 #%% Data Normalization using eccentricities and Angle normalization
 # Normalization to longer time series since data and dataB have different lengths
@@ -185,15 +207,15 @@ vYsmooth = smoother2.smooth_data[0]
 
 ## Computing Velocity in m/s
 # Thesis Page 17 figure 2.5 for calibration and unit conversion
-# Multiply by conversion factor of 0.1 in/pixel * .0254m/in
+# Multiply by conversion factor of 0.045 in/pixel * .0254m/in
 # This conversion factor is based on Kai's original dataset
 # Shashwat Sparsh Data set uses the following conversion factor: 
 # Make sure you remember to put a TSQUARE in the camera view frame and take a snapshot to get this value
 
 # Kais Conversion Factor
 # Do not delete this conversion factor from the code, it is necessary to analyze legacy data.
-Kfront = 0.1 # in/pixel
-Kbot = 0.045 # in/pixel
+Kbot = 0.1 # in/pixel
+Kfront = 0.045 # in/pixel
 
 # Set to appropriate Conversion Factor
 conversionFactorFront = Kfront
@@ -214,22 +236,6 @@ vTime = data['time'].to_numpy()[:-1]
 aYMPS2 = np.diff(vYsmoothMPS) / np.diff(vTime)
 # Remove last value as there are n-2 Accelerations compared to positions
 aTime = vTime[:-1]
-
-## The following portion should be automated in the future to reference the seed properties csv file and index based on the id set.
-# Currently the values are hard-coded for simplicity.
-## Seed Specific Information
-# Span in radius [mm] ID
-spanmm3 = 61.12  # [mm]
-spanmm6 = 74.06   
-spanmm7 = 61.96
-spanmm47 = 59.12
-radii = np.array([spanmm3, spanmm6, spanmm7, spanmm47])
-# Masses [g]
-massGrams3 = 0.4                        # [g]
-massGrams6 = 0.7                        # [g]
-massGrams7 = 0.5                        # [g]
-massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
-massesKg = (1/1000)*np.array([massGrams3, massGrams6, massGrams7, massGrams47])
 
 ## Computing Average Thrust Force
 # Fnet = m*a = m*g - Thrust <=> Thrust = m*g - m*a <=> Thrust = m*(g-a)
@@ -253,47 +259,6 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 #print("SlicedThrust Values are", slicedThrust)
 #print(ThrustForce)
 '''
-#%% Computing Disk Loading and Dynamic Pressure to estimate the CL at the end of transition
-
-# Transition Completion is the instant the steady-state rotation begins
-# It is abberiviated in the code as: TC
-
-transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
-transitionTime = tNorm[transitionTimeIndex]
-coningAngleTC = betaNormS[transitionTimeIndex]
-descentVelocityTC = vYsmoothMPS[transitionTimeIndex]
-
-# Air Density
-rho = 1.225 #kg/m^3
-
-# Based on the Niu Atkins Intrinsic Equilibrium of Samara Auto-rotation, the CL can be approximated
-# by balancing the disk loading and the dynamic pressure
-# EQN: 1/CL ~ 0.5rhoVd^2/delta where delta is disk-loading and Vd is descent velocity
-
-
-# Dynamic Pressure for a propeller is evaluated using the following:
-# https://www.grc.nasa.gov/WWW/k-12/VirtualAero/BottleRocket/airplane/propth.html
-# https://www.grc.nasa.gov/www/k-12/airplane/propth.html
-# As the free-stream velocity is zero in this test, the room has still air, the V0 = 0;
-# The only velocity experienced by the samara in the direction of the disk loading (i.e. normal to the disk) is descent Velocity
-dynamicPressureTC = 0.5*rho*np.square(descentVelocityTC)
-
-# The Diskloading is a function of the coning angle of the seed as greater coning angles reduce the area of disk generating during the spin
-#      *
-#  ___*   Steeper angle of the blade indicated by  * with respect to the horizontal indicated ___
-#      **
-# ___**   Shallower angle of the blade indicated by * with respect to he horizontal indicated ___
-# Thus the radius of the disk is equal to span * cos(coningAngle) == span*cos(betaNormS)
-
-# Disk Area: A = pi * (span*cos(betaNormS))^2
-# Convert the span to meters from mm
-DiskArea = np.pi * np.square((radii[0] * (1/1000)) * np.cos(np.deg2rad(coningAngleTC)))
-
-# Disk Loading = mg/A
-diskLoading = (massesKg[0]*g)/DiskArea
-
-CL_TC = diskLoading/dynamicPressureTC
-
 
 #%% Evaluating Rotational Speed
 
@@ -318,8 +283,8 @@ periods = timeDifference[startPeriod:stopPeriod:stepPeriod] # [s]
 # Steady State Time Stamps
 stepTime = 1
 steadyStateTimeStamps = tNormPeaks[tNormPeaks.size-numSteadyState:
-                                   tNormPeaks.size:
-                                       stepTime]
+                                    tNormPeaks.size:
+                                        stepTime]
 
 # Compute Angular Speed in Rad/s -> 1 Rotation 2pi
 thetaDot = (1/periods) * 2 * np.pi
@@ -327,100 +292,160 @@ thetaDot = (1/periods) * 2 * np.pi
 averageThetaDot = np.average(thetaDot)
 omega = averageThetaDot
 
+#%% Computing Disk Loading and Dynamic Pressure to estimate the CL at the end of transition
+
+# Transition Completion is the instant the steady-state rotation begins
+# It is abberiviated in the code as: TC
+
+transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
+transitionTime = tNorm[transitionTimeIndex]
+# transitionTimeIndex = 1400
+coningAngleTC = betaTrue[transitionTimeIndex]
+descentVelocityTC = vYsmoothMPS[transitionTimeIndex]
+
+
+
+# Based on the Niu Atkins Intrinsic Equilibrium of Samara Auto-rotation, the CL can be approximated
+# by balancing the disk loading and the dynamic pressure
+# EQN: 1/CL ~ 0.5rhoVd^2/delta where delta is disk-loading and Vd is descent velocity
+
+
+# Dynamic Pressure for a propeller is evaluated using the following:
+# https://www.grc.nasa.gov/WWW/k-12/VirtualAero/BottleRocket/airplane/propth.html
+# https://www.grc.nasa.gov/www/k-12/airplane/propth.html
+# As the free-stream velocity is zero in this test, the room has still air, the V0 = 0;
+# The only velocity experienced by the samara in the direction of the disk loading (i.e. normal to the disk) is descent Velocity
+dynamicPressureTC = 0.5*rho*np.square(descentVelocityTC)
+
+tipSpeed = (0.5*omega*currentSpan)
+
+# The Diskloading is a function of the coning angle of the seed as greater coning angles reduce the area of disk generating during the spin
+#      *
+#  ___*   Steeper angle of the blade indicated by  * with respect to the horizontal indicated ___
+#      **
+# ___**   Shallower angle of the blade indicated by * with respect to he horizontal indicated ___
+# Thus the radius of the disk is equal to span * cos(coningAngle) == span*cos(betaNormS)
+
+# Disk Area: A = pi * (span*cos(betaNormS))^2
+# Convert the span to meters from mm
+diskArea = np.pi * np.square((currentSpan*np.cos(np.deg2rad(coningAngleTC))))
+
+# Disk Loading = mg/A
+diskLoading = (currentMass*g)/diskArea
+
+# Disk Solidity = Ablade/Adisk
+# diskSolidity = 0.0011687/diskArea
+#print(diskSolidity)
+
+CL_TC = diskLoading/dynamicPressureTC
+
+print(descentVelocityTC)
+print(dynamicPressureTC)
+
+print(massesKg[0]*g)
+print(diskArea)
+
+print(diskLoading)
+print(CL_TC)
+
+print()
+
+
+
 #%% Using FFT
 
-## Analysing Frequency Response
-# Slice XNorm for only relevant steady-state data
-xNormTimeStepIndex = int(np.where(tNorm == tNormPeaks[0])[0])
-# xNormTimeStepIndex = tNorm.index(tNormPeaks[0])
+# ## Analysing Frequency Response
+# # Slice XNorm for only relevant steady-state data
+# xNormTimeStepIndex = int(np.where(tNorm == tNormPeaks[0])[0])
+# # xNormTimeStepIndex = tNorm.index(tNormPeaks[0])
 
-xNormSliced = xNorm[xNormTimeStepIndex:None]
-# Extract Compled Frequency Response
-complexFrequencyResponse = np.fft.fft(xNormSliced)
-# Take the Magnitude to get the "REAL" part of the result and normalize by number of samples
-frequencyResponse = np.abs(complexFrequencyResponse) / xNorm.size
-# Get Sample Frequencies (ie 1kHz, 100kHz, ...)
-timestep = tNorm[1]-tNorm[0]
-freq = np.fft.fftfreq(xNorm.size, d=timestep)
-freq = np.linspace(0, 10000, 100)
+# xNormSliced = xNorm[xNormTimeStepIndex:None]
+# # Extract Compled Frequency Response
+# complexFrequencyResponse = np.fft.fft(xNormSliced)
+# # Take the Magnitude to get the "REAL" part of the result and normalize by number of samples
+# frequencyResponse = np.abs(complexFrequencyResponse) / xNorm.size
+# # Get Sample Frequencies (ie 1kHz, 100kHz, ...)
+# timestep = tNorm[1]-tNorm[0]
+# freq = np.fft.fftfreq(xNorm.size, d=timestep)
+# freq = np.linspace(0, 10000, 100)
 
-fig, [ax1, ax2] = plt.subplots(nrows=2, ncols=1)
-ax1.plot(tNorm, xNorm)
-ax2.plot(frequencyResponse)
+# fig, [ax1, ax2] = plt.subplots(nrows=2, ncols=1)
+# ax1.plot(tNorm, xNorm)
+# ax2.plot(frequencyResponse)
 
-plt.plot(freq)
-plt.show()
-#frequencyResponse = np.fft.rfftfreq(xNorm)
-#print(frequencyResponse)
-#plt.plot(frequencyResponse)
-
-
-## Computing Thrust Coefficient
-# Source: https://scienceworld.wolfram.com/physics/ThrustCoefficient.html
-# T = CT * 0.5 * rho * (omega*r)^2 * A
-# CT = T * 1/(0.5 * rho * (omega*r)^2 * A)
-# T:        Thrust
-# CT:       Coefficient of Thrust
-# rho:      Density
-# omega:    Rotational Velocity
-# r:        Radius of blade
-# A:        Disk Area
-# A = pi * r^2
-
-rM = radiusmm3 * (0.001)       # [m]
-vtip = omega * rM               # [m/s]
-rho = 1.225                     # kg/m3
-
-DiskArea = np.pi*rM*rM          # [m^2]
-# Tip Velocity
-omegaRM = omega*rM              # [m/s]
-
-thrustCoeffList = slicedThrust * (1/(rho*(omegaRM)*(omegaRM)*(DiskArea)))
-avgThrustCoeff = np.average(thrustCoeffList)
-
-print("Evaluation Duration: ", evaluationDuration)
-#print("Thrust Coefficient List: ", thrustCoeffList)
-#print("Average Thrust Coeff: ", avgThrustCoeff)
+# plt.plot(freq)
+# plt.show()
+# #frequencyResponse = np.fft.rfftfreq(xNorm)
+# #print(frequencyResponse)
+# #plt.plot(frequencyResponse)
 
 
-#
-## Generate DataFrames
-resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
-                                 'xNorm' : xNorm,
-                                 'yNorm' : yNorm,
-                                 'zNorm' : zNorm})
+# ## Computing Thrust Coefficient
+# # Source: https://scienceworld.wolfram.com/physics/ThrustCoefficient.html
+# # T = CT * 0.5 * rho * (omega*r)^2 * A
+# # CT = T * 1/(0.5 * rho * (omega*r)^2 * A)
+# # T:        Thrust
+# # CT:       Coefficient of Thrust
+# # rho:      Density
+# # omega:    Rotational Velocity
+# # r:        Radius of blade
+# # A:        Disk Area
+# # A = pi * r^2
 
-#vYSmoothDf = pandas.DataFrame({'Time [s]' : vTime,
-#                               'Descent Velocity [m/s]' : vYsmoothMPS})
+# rM = radii[0] * (0.001)       # [m]
+# vtip = omega * rM               # [m/s]
+# rho = 1.225                     # kg/m3
+
+# DiskArea = np.pi*rM*rM          # [m^2]
+# # Tip Velocity
+# omegaRM = omega*rM              # [m/s]
+
+# thrustCoeffList = slicedThrust * (1/(rho*(omegaRM)*(omegaRM)*(DiskArea)))
+# avgThrustCoeff = np.average(thrustCoeffList)
+
+# print("Evaluation Duration: ", evaluationDuration)
+# #print("Thrust Coefficient List: ", thrustCoeffList)
+# #print("Average Thrust Coeff: ", avgThrustCoeff)
 
 
-#thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
-#                                'Net Acceleration [m/s^2]' : aYMPS2,
-#                                'Thrust Force [N]' : ThrustForce })
-#'''
+# #
+# ## Generate DataFrames
+# resultsPosDf = pandas.DataFrame({'tNorm' : tNorm,
+#                                  'xNorm' : xNorm,
+#                                  'yNorm' : yNorm,
+#                                  'zNorm' : zNorm})
 
-## Exporting to CSV
-#resultsPosDf.to_csv(f'{date}_Data/{idText}  Trajectory.csv')
-# vYSmoothDf.to_csv(f'{date}_Data/{idText} Descent Velocity.csv')
-# thrustDf.to_csv(f'{date}_Data/{idText} Descent Acceleration.csv')
-# Accelerations.to_csv('Accelerations with filters.csv')
+# #vYSmoothDf = pandas.DataFrame({'Time [s]' : vTime,
+# #                               'Descent Velocity [m/s]' : vYsmoothMPS})
 
 
-## Next Steps
-# Extract the NormPosition for each seed and place into dataframe
-# Extract the LabFrame Trajectory for Z axis
-# Extract velocities and forces
-# Set up theta computation
+# #thrustDf = pandas.DataFrame({   'Time [s]' : aTime,
+# #                                'Net Acceleration [m/s^2]' : aYMPS2,
+# #                                'Thrust Force [N]' : ThrustForce })
+# #'''
 
-''''
-plt.plot(tNorm, xNorm, label='x Position')
-plt.plot(tNorm, yNorm, label='y Position')
-plt.plot(tNorm, zNorm, label='z Position')
-plt.title('Seed 3 Trajectory')
-plt.xlabel('Time [s]')
-plt.ylabel('Normalized Position')
-plt.legend(bbox_to_anchor=(1.05, 0), loc='upper left')
-plt.grid(True)
+# ## Exporting to CSV
+# #resultsPosDf.to_csv(f'{date}_Data/{idText}  Trajectory.csv')
+# # vYSmoothDf.to_csv(f'{date}_Data/{idText} Descent Velocity.csv')
+# # thrustDf.to_csv(f'{date}_Data/{idText} Descent Acceleration.csv')
+# # Accelerations.to_csv('Accelerations with filters.csv')
 
-plt.savefig('Seed 3 Trajectory.png', bbox_inches='tight', dpi=800)
-'''
+
+# ## Next Steps
+# # Extract the NormPosition for each seed and place into dataframe
+# # Extract the LabFrame Trajectory for Z axis
+# # Extract velocities and forces
+# # Set up theta computation
+
+# ''''
+# plt.plot(tNorm, xNorm, label='x Position')
+# plt.plot(tNorm, yNorm, label='y Position')
+# plt.plot(tNorm, zNorm, label='z Position')
+# plt.title('Seed 3 Trajectory')
+# plt.xlabel('Time [s]')
+# plt.ylabel('Normalized Position')
+# plt.legend(bbox_to_anchor=(1.05, 0), loc='upper left')
+# plt.grid(True)
+
+# plt.savefig('Seed 3 Trajectory.png', bbox_inches='tight', dpi=800)
+# '''
