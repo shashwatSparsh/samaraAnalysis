@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import pandas
 
+#%% Reading Data
+
 # for reading csv of masses and scan of samaras
 # takes grid layout of scans such as in seedLayoutRaw.png and outputs dimensions for each seed
     # seedLayoutRaw has 100 seeds, in 5 rows of 20 seeds
@@ -9,15 +11,26 @@ import pandas
 
 # read csv of masses
     # cols = ids,masses
-dims = pandas.read_csv('Masses.csv', header = None)
+# The CSV name in question should be changed based on what CSV is being read
+kaiCSV = 'Mass.csv'
+saucyCSV = 'fastMass.csv'
+dims = pandas.read_csv(saucyCSV, header = None)
 dims.rename(columns = {0:'id',1:'mass'},inplace=True)
 
 # read in raw scan file
-samples = cv2.imread('seedLayoutRaw.png')
+# Set Which ImageLayout to read from
+kaiLayout = 'seedLayourRaw.png'
+saucyLayout = 'newSeedLayoutRaw.jpg'
 
+samples = cv2.imread(saucyLayout)
+
+# Change distance/pixel based on which image you are reading
 # input distance/pixel value of file
-res = 0.02/1.11 #in/px
+kaiRes = .02/1.11 #in/px
+saucyRes = 1.72/510 #in/px
+res = saucyRes
 
+#%% Variable Initialization
 #cv2.imshow('raw image',samples)
 
 # convert image to black and white for masking
@@ -51,6 +64,9 @@ ImList = []
 font = cv2.FONT_HERSHEY_COMPLEX_SMALL
 textColor = (0,0,0)
 
+#%% Setting IDS
+# Set the linspace based on your sample size
+# E.G. for 13 seeds: np.linespace(1,13,13) and so on soforth
 # set ids
 id = np.linspace(1,100,100)
 
@@ -59,14 +75,24 @@ mask = cv2.erode(mask,None,iterations = 2)
 mask = cv2.dilate(mask,None,iterations = 2)
 
 
+# This loop should be adjusted based on the number of rows and columns
+# Kai's Original Dataset had 100 seeds with 5 rows and 20 columns.
+# Fast Data set includes 13 seeds with 1 row and 13 columns.
+kaiRows = 5;
+kaiCols = 20;
+saucyRows = 1;
+saucyCols = 13;
+
+numRows = saucyRows
+numColumns = saucyCols
 k = 0
 # iterate over number of rows
-for i in range(5):
+for i in range(numRows):
     # draw vertical line to divide cols
     cv2.line(samples,(0,i*h),(samples.shape[1],i*h),(0,0,0),2)
 
     # iterate over row
-    for j in range(20):
+    for j in range(numColumns):
 
         # get current seed in image
         im = mask[i*(h):(i+1)*h - 1 , j*(w) + shift:(j+1)*w - 1 + shift]
@@ -163,7 +189,10 @@ maxW = samples.shape[1]
 cv2.line(samples,(maxW,0),(maxW,maxH),(0,0,0),2)
 cv2.line(samples,(0,maxH),(maxW,maxH),(0,0,0),2)
 
+#%% Data Frame Construction
+# Note, the Aspect Ratio and Loading Computations are incorrect and are changed manually
 # concatenate pandas dataframe with new data (in mm and mm^2)
+
 dims['area'] = area
 dims['loading'] = dims['mass']/dims['area']*1550
 dims['area'] = dims['area']*645.2
@@ -173,11 +202,18 @@ dims['aspect'] = dims['area']/dims['chord']
 
 cv2.imshow('w/text',samples)
 
+#%% Change these File paths EVERYTIME working with a new data set.
 # write files
-filepath = 'sampleProperties.csv'
+# Change name of property generation file
+kaiName = 'sampleProperties.csv'
+saucyName = 'fastSampleProperties.csv'
+
+filepath = saucyName
 dims.to_csv(filepath)
 
 # change filename here as desired
-cv2.imwrite('seedLayoutMarkupNoMass.png',samples)
+kaiImageName = 'seedLayoutMarkupNoMass.png'
+saucyImageName = 'fastSeedLayoutMarkupNoMass.png'
+cv2.imwrite(saucyImageName,samples)
 cv2.waitKey(0)
 cv2.destroyAllWindows()

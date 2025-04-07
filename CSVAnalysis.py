@@ -43,8 +43,10 @@ massGrams7 = 0.5                        # [g]
 massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
 massesKg = .001*np.array([massGrams3, massGrams6, massGrams7, massGrams47])
 
-currentSpan = radii[3]
-currentMass = massesKg[3]
+seedIndex = 0
+
+currentSpan = radii[seedIndex]
+currentMass = massesKg[seedIndex]
 
 
 #%% Setting ID to analyze specific Seed
@@ -93,6 +95,7 @@ len = dims[dims['id'] == id]['span'].values[0]
 # Getting Angles to compute orientation
 yVec,zVec,thetaFront,quad = sa.vectorize_front(data['angle'])
 xVec,yVec2,alpha = sa.vectorize_bottom(dataB['angle'])
+
 
 # Smothing Variables
 # Define the smoother parameters
@@ -196,14 +199,25 @@ insight into possible future eccentricity tracking and optimization.
 
 #%% Kinematic Response Analysis
 
-# Calculate descent speed
+# Calculate descent speed, remember the "x" variable here is the z position during descent
 vY = sa.descentSpeed(data['x'],data['time'])
 
+
 # Smooth out the descent velocity
-# Note: There should be a better smoothing function created here that is better suited to remove noise
-# using smoother2 is a stop-gap measure
-smoother2.smooth(vY)
-vYsmooth = smoother2.smooth_data[0]
+# Note: There should be a better smoothing function created here that is better
+# suited to remove noise
+
+smoother3 = sm.KalmanSmoother(component='level',component_noise={'level':0.5})
+smoother3.smooth(vY)
+vYsmooth1 = smoother3.smooth_data[0]
+
+#smoother4 = sm.SpectralSmoother(0.09, 6, False)
+#smoother4.smooth(vY)
+#vYsmooth2 = smoother4.smooth_data[0]
+smoother5 = sm.LowessSmoother(0.3, 1)
+smoother5.smooth(vY)
+vYsmooth = smoother5.smooth_data[0]
+
 
 ## Computing Velocity in m/s
 # Thesis Page 17 figure 2.5 for calibration and unit conversion
@@ -223,17 +237,27 @@ conversionFactorBot = Kbot
 # Convert from inches to Meters
 inchesToMeters = 0.0254
 # Convert to m/s
-vYsmoothMPS = vYsmooth * conversionFactorFront * inchesToMeters
+descentVelocity = vYsmooth * conversionFactorFront * inchesToMeters
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
 # Two arrays of descent velocity and descent time have been generated
+
+
+
+#axs[2].plot(vTime, vYsmooth * conversionFactorFront * inchesToMeters,
+#         linestyle='--', label='Lowess Filter Smoothing')
+
+
+
+#plt.legend(velocitySmoothingLabels, loc="best")
+
 
 #%% Dynamic Response Computation
 
 ## Computing Acceleration in m/s^2
 # use numpy backward differencing function on on vYsmoothMPS and vTime
 # a = delta V / delta T
-aYMPS2 = np.diff(vYsmoothMPS) / np.diff(vTime)
+descentAcceleration = np.diff(descentVelocity) / np.diff(vTime)
 # Remove last value as there are n-2 Accelerations compared to positions
 aTime = vTime[:-1]
 
@@ -242,7 +266,7 @@ aTime = vTime[:-1]
 # note: a = a_net
 # ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
 g = 9.81                                    # Gravitational Acceleration [m/s^2]
-ThrustForce = massesKg[0] * (g - aYMPS2)    # [kg*m/s^2] = [N]
+ThrustForce = massesKg[0] * (g - descentAcceleration)    # [kg*m/s^2] = [N]
 
 # Take the Last n Values from the Thrust Computation because they are steady state
 numEvals = 4
@@ -259,6 +283,37 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 #print("SlicedThrust Values are", slicedThrust)
 #print(ThrustForce)
 '''
+#%% Plotting the Filtering Results
+# Comment this section out when un-needed
+fig, axs = plt.subplots(6, figsize=(12,15), sharex=True, dpi=800)
+#velocitySmoothingLabels=['Kalman Filter Smoothing','Lowess Filter Smoothing']
+for i in range(6):
+    axs[i].grid()
+# axs[0].grid()
+# axs[1].grid()
+# axs[2].grid()
+#ax.plot(vTime, vY, color='gray', linestyle=':' ,label='Raw Data')
+axs[0].plot(vTime, data['x'][:1514],
+            label="Raw Z Position (pixels)")
+axs[1].plot(vTime, xNorm[:1514],
+        linestyle='-.', label='xNorm')
+axs[2].plot(vTime, vYsmooth1 * conversionFactorFront * inchesToMeters,
+        linestyle='-.', label='Kalman Filter Smoothing')
+axs[3].plot(vTime, vYsmooth * conversionFactorFront * inchesToMeters,
+         linestyle='--', label='Lowess Filter Smoothing')
+axs[4].plot(aTime, np.diff(vYsmooth1 * conversionFactorFront * inchesToMeters)/np.diff(vTime),
+            label="Descent Acceleration")
+axs[5].plot(aTime, descentAcceleration)
+
+axs[0].set_ylabel("Descent Z Position")
+axs[1].set_ylabel("XNorm Position")
+axs[2].set_ylabel("Descent Velocity (K Filter)")
+axs[3].set_ylabel("Descent Velocity (L Filter)")
+axs[4].set_ylabel("Descent Acceleration (K Filter)")
+axs[5].set_ylabel("Descent Acceleration (L Filter)")
+axs[4].set_xlabel("Time [s]")
+
+plt.tight_layout()
 
 #%% Evaluating Rotational Speed
 
@@ -273,7 +328,7 @@ tNormPeaks = tNorm[peaks2]
 timeDifference = np.diff(tNormPeaks)    # [s]
 
 # Slicing Peaks Data for only steady state conditions
-numSteadyState = 2 # of steady state rotations to consider
+numSteadyState = 3 # of steady state rotations to consider
 
 # Steady State Periods
 startPeriod = timeDifference.size - numSteadyState
@@ -297,13 +352,34 @@ omega = averageThetaDot
 # Transition Completion is the instant the steady-state rotation begins
 # It is abberiviated in the code as: TC
 
+# Find when Transition Occurs
+# transitionTimeIndex is the index that can be used to parse for various values @ the index
 transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
+# Find Transition Time
 transitionTime = tNorm[transitionTimeIndex]
-# transitionTimeIndex = 1400
+# Find the Coning Angle at end of Transition
 coningAngleTC = betaTrue[transitionTimeIndex]
-descentVelocityTC = vYsmoothMPS[transitionTimeIndex]
+# Find the descent velocity at the end of Transition
+descentVelocityTC = descentVelocity[transitionTimeIndex]
+# Acceleration at completion of transition
+accelerationTC = descentAcceleration[transitionTimeIndex]
 
 
+## Find the incomming flow over the blade during rotation
+# V_incomming = Rotational Speed * Span;
+# Because the incomming flow over the entire blade area varies based on where along the span
+# you are measuring, you can average out the lowest and highest speeds instead
+# Oncomming flow speed at the root of the blade is effectively zero because it 
+# lines up with the axis of rotation
+rootSpeed = 0;
+# The highest oncomming flow speed as at the tip because this maximizes the radius of rotation
+# Thus the oncomming flow speed can be calculated as:
+tipSpeed = (omega*currentSpan)
+oncommingFlowAvg = 0.5*(tipSpeed+rootSpeed)
+
+# Because the vectors of the flow experienced by the blade are different, the sum can
+# be calculated by taking the vecotr sum of the descent Velocity and the oncommingFlowAvg
+totalBladeFlowVelocity = np.sqrt(np.square(oncommingFlowAvg)+np.square(descentVelocityTC))
 
 # Based on the Niu Atkins Intrinsic Equilibrium of Samara Auto-rotation, the CL can be approximated
 # by balancing the disk loading and the dynamic pressure
@@ -314,10 +390,10 @@ descentVelocityTC = vYsmoothMPS[transitionTimeIndex]
 # https://www.grc.nasa.gov/WWW/k-12/VirtualAero/BottleRocket/airplane/propth.html
 # https://www.grc.nasa.gov/www/k-12/airplane/propth.html
 # As the free-stream velocity is zero in this test, the room has still air, the V0 = 0;
-# The only velocity experienced by the samara in the direction of the disk loading (i.e. normal to the disk) is descent Velocity
-dynamicPressureTC = 0.5*rho*np.square(descentVelocityTC)
+# The flow experienced over the samara blade was calculated prior
 
-tipSpeed = (0.5*omega*currentSpan)
+dynamicPressureTC = 0.5*rho*np.square(totalBladeFlowVelocity)
+
 
 # The Diskloading is a function of the coning angle of the seed as greater coning angles reduce the area of disk generating during the spin
 #      *
@@ -328,7 +404,8 @@ tipSpeed = (0.5*omega*currentSpan)
 
 # Disk Area: A = pi * (span*cos(betaNormS))^2
 # Convert the span to meters from mm
-diskArea = np.pi * np.square((currentSpan*np.cos(np.deg2rad(coningAngleTC))))
+diskRadius = currentSpan*np.cos(np.deg2rad(coningAngleTC))
+diskArea = np.pi * (diskRadius**2)
 
 # Disk Loading = mg/A
 diskLoading = (currentMass*g)/diskArea
@@ -337,18 +414,37 @@ diskLoading = (currentMass*g)/diskArea
 # diskSolidity = 0.0011687/diskArea
 #print(diskSolidity)
 
+# CL at completion of transition
 CL_TC = diskLoading/dynamicPressureTC
 
-print(descentVelocityTC)
-print(dynamicPressureTC)
+# Recall Thrust is given by T = m * (g-a)
+ThrustTC = currentMass * (g-accelerationTC) # [N]
+# Because this value is super small, it becomes useful to convert to mN
+ThrustTC_mN = ThrustTC*1000
+# To get the specific thrust and normalize by mass, divide the mN thrust by the mass
+# The mass should be converted back to grams from kg in order for this parameter to make sense
+specificThrustTC = ThrustTC_mN/(currentMass*1000)
 
-print(massesKg[0]*g)
-print(diskArea)
 
-print(diskLoading)
-print(CL_TC)
 
-print()
+# print(coningAngleTC)
+
+# print(descentVelocityTC)
+# print(totalBladeFlowVelocity)
+# print(dynamicPressureTC)
+
+# print(massesKg[0]*g)
+# print(diskArea)
+
+# print(diskLoading)
+# print(CL_TC)
+
+# print(accelerationTC)
+
+# print(specificThrustTC)
+
+
+# print()
 
 
 
