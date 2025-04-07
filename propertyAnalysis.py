@@ -12,45 +12,99 @@ import pandas
 # read csv of masses
     # cols = ids,masses
 # The CSV name in question should be changed based on what CSV is being read
-kaiCSV = 'Mass.csv'
+kaiCSV = 'Masses.csv'
 saucyCSV = 'fastMass.csv'
-dims = pandas.read_csv(saucyCSV, header = None)
-dims.rename(columns = {0:'id',1:'mass'},inplace=True)
-
 # read in raw scan file
 # Set Which ImageLayout to read from
-kaiLayout = 'seedLayourRaw.png'
-saucyLayout = 'newSeedLayoutRaw.jpg'
-
-samples = cv2.imread(saucyLayout)
-
-# Change distance/pixel based on which image you are reading
-# input distance/pixel value of file
+kaiLayout = 'seedLayoutRaw.png'
+saucyLayout = 'newLayout.png'
+# Resolution should be changed per dataSet
 kaiRes = .02/1.11 #in/px
-saucyRes = 1.72/510 #in/px
-res = saucyRes
+saucyRes = 1.68/127 #in/px
+# width and height of rectangle encompassing ONE seed
+# These correspond to the pixel width and height of each box and will have to be changed based
+# on each data set
+# Do not make these numbers EXACT to the sizing, the shift term below accounts for error 
+origW = 87
+origH = 228
+fastW = 100
+fastH = 330
+# Set the linspace based on your sample size
+# E.G. for 13 seeds: np.linespace(1,13,13) and so on soforth
+# set ids
+originalNumSeeds = 100
+fastSeeds = 3
+# Kai's Original Dataset had 100 seeds with 5 rows and 20 columns.
+# Fast Data set includes 13 seeds with 1 row and 13 columns.
+kaiRows = 5;
+kaiCols = 20;
+saucyRows = 1;
+saucyCols = 13;
+# Change name of property generation file
+kaiName = 'sampleProperties.csv'
+saucyName = 'fastSampleProperties.csv'
+# change filename here as desired
+kaiImageName = 'seedLayoutMarkupNoMass.png'
+saucyImageName = 'fastSeedLayoutMarkupNoMass.png'
+#%%
+dataSet1 = ['Masses.csv', 
+            'seedLayoutRaw.png',
+            .02/1.11,
+            87,
+            228,
+            100,
+            5,
+            20,
+            'sampleProperties.csv',
+            'seedLayoutMarkupNoMass.png']
+dataSet2 = ['fastMass.csv',
+            'newLayout.png',
+            1.68/127,
+            140,
+            360,
+            13,
+            1,
+            13,
+            'fastSampleProperties.csv',
+            'fastSeedLayoutMarkupNoMass.png']
 
+testSet = dataSet2
+
+
+dims = pandas.read_csv(testSet[0], header = None)
+dims.rename(columns = {0:'id',1:'mass'},inplace=True)
+
+samples = cv2.imread(testSet[1])
+
+res = testSet[2]
+
+
+##: 1869x367
 #%% Variable Initialization
 #cv2.imshow('raw image',samples)
 
 # convert image to black and white for masking
 samplesBW = cv2.cvtColor(samples, cv2.COLOR_BGR2GRAY)
+cv2.imwrite('bwNew.png', samplesBW)
 
+#%%
 # take all nonwhite pixels as 'true'
-mask = cv2.inRange(samplesBW,0,254)
+sauce = 200
+kai = 254
+mask = cv2.inRange(samplesBW,0,sauce)
 
-# width and height of rectangle encompassing ONE seed
-w = 87
-h = 228
+w = testSet[3]
+h = testSet[4]
 
 # code for testing w and h values
 im1 = mask[0:h,0:w]
 im2 = mask[0:h,w+1:w+1+w]
 im3 = mask[h:h+1+h,w+1:w+1+w]
-#cv2.imshow('crop',im1)
-#cv2.imshow('crop2',im2)
-#cv2.imshow('im3',im3)
-
+#%%
+cv2.imwrite('crop.png',im1)
+cv2.imwrite('crop2.png',im2)
+cv2.imwrite('im3.png',im3)
+#%%
 # initialize variables
 area = []
 span = []
@@ -65,27 +119,49 @@ font = cv2.FONT_HERSHEY_COMPLEX_SMALL
 textColor = (0,0,0)
 
 #%% Setting IDS
-# Set the linspace based on your sample size
-# E.G. for 13 seeds: np.linespace(1,13,13) and so on soforth
-# set ids
-id = np.linspace(1,100,100)
+
+numSeeds = testSet[5]
+id = np.linspace(1,numSeeds,numSeeds)
 
 # erode and dilate mask to eliminate tails of samaras
 mask = cv2.erode(mask,None,iterations = 2)
+# cv2.imshow(erosionWindow, mask)
+#cv2.imwrite('masktest1', mask)
 mask = cv2.dilate(mask,None,iterations = 2)
+#cv2.imwrite('masktest2', mask)
 
 
+#%%
 # This loop should be adjusted based on the number of rows and columns
-# Kai's Original Dataset had 100 seeds with 5 rows and 20 columns.
-# Fast Data set includes 13 seeds with 1 row and 13 columns.
-kaiRows = 5;
-kaiCols = 20;
-saucyRows = 1;
-saucyCols = 13;
 
-numRows = saucyRows
-numColumns = saucyCols
+numRows = testSet[6]
+numColumns = testSet[7]
 k = 0
+
+# #%%
+
+# newArea = []
+# i = 0
+# j = 0
+# cv2.line(samples,(0,i*h),(samples.shape[1],i*h),(0,0,0),2)
+
+# im = mask[i*(h):(i+1)*h - 1 , j*(w) + shift:(j+1)*w - 1 + shift]
+# cv2.imwrite('curIM.png', im)
+
+# #color = samples[i*(h):(i+1)*h - 1 , j*(w) + shift:(j+1)*w - 1 + shift]
+# #ImList.append(color)
+# conts, _ = cv2.findContours(im,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+# #cv2.imwrite("testImage.png", im)
+
+# #%%
+# if len(conts) != 0:
+#     bigCont = max(conts,key = cv2.contourArea)
+#     newArea.append(cv2.contourArea(bigCont)*res*res)
+
+# ((x,y),(c,b),a) = cv2.fitEllipse(bigCont)
+# ellip = (x,y),(c,b),a
+
+#%%
 # iterate over number of rows
 for i in range(numRows):
     # draw vertical line to divide cols
@@ -97,18 +173,28 @@ for i in range(numRows):
         # get current seed in image
         im = mask[i*(h):(i+1)*h - 1 , j*(w) + shift:(j+1)*w - 1 + shift]
 
+        #cv2.imwrite('curIM.png', im)        
+
         # get color version of same frame
         color = samples[i*(h):(i+1)*h - 1 , j*(w) + shift:(j+1)*w - 1 + shift]
         
         ImList.append(color)
 
         # find contours
-        conts, _ = cv2.findContours(im,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # This is the original Contours code from Kai's Original work
+        # conts, _ = cv2.findContours(im,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # It however produces a bug for the new Layout
+        #   (-201:Incorrect size of input array) There should be at least 5 points to fit the ellipse in function 'cv::fitEllipseNoDirect'
+        # Solution via Stackoverflow: https://stackoverflow.com/questions/49635465/error-in-ellipses-using-opencv-python
+        # Use RETR_TREE instead of RETR_EXTERNAL
+        conts, _ = cv2.findContours(im,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
 
         # ensure that only largest contour (seed outline) is in contours
         if len(conts) != 0:
             bigCont = max(conts,key = cv2.contourArea)
             area.append(cv2.contourArea(bigCont)*res*res)
+        
         
         # fit ellipse for span and chord analysis
         ((x,y),(c,b),a) = cv2.fitEllipse(bigCont)
@@ -165,6 +251,7 @@ for i in range(numRows):
                     fontThickness) """
         
         # line 3, area
+        print('area', k)
         a = area[k]
         y = (i*h) + 3*gap + 175
         """ cv2.putText(samples,f'{a:.2f}sqin',(x,y),font,
@@ -181,6 +268,7 @@ for i in range(numRows):
 
         # print row and iterate total id count (k)
         print(f'row {i+1}, col {j+1}')
+        #print(k)
         k += 1
     
 # create edge lines:
@@ -204,16 +292,11 @@ cv2.imshow('w/text',samples)
 
 #%% Change these File paths EVERYTIME working with a new data set.
 # write files
-# Change name of property generation file
-kaiName = 'sampleProperties.csv'
-saucyName = 'fastSampleProperties.csv'
 
-filepath = saucyName
+filepath = testSet[8]
 dims.to_csv(filepath)
 
 # change filename here as desired
-kaiImageName = 'seedLayoutMarkupNoMass.png'
-saucyImageName = 'fastSeedLayoutMarkupNoMass.png'
-cv2.imwrite(saucyImageName,samples)
+cv2.imwrite(testSet[9],samples)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
