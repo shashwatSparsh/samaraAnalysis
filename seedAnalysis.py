@@ -34,7 +34,12 @@ class vidAnalysis:
 
         # original video filmed at 1500 fps
         self.frameTime = 1/1500 # sec/frame
-
+        
+        # Resolution: [Front, Bottom] in in/px
+        # kaiResolution = [.041, .02]
+        # saucyRes = [1.628, 8.302] in mm/px
+        #            [0.064, 0.33] in in/px   
+        
         self.resFront = 0.041 # in/px
         self.resBottom = 0.02 # in/px
 
@@ -361,9 +366,17 @@ class vidAnalysis:
             # additionally sharpens data
             # frame must be ad
 
+        # Set the Pixel Locations in Frame
+        # 20250326 Frame
+        frame = frame[25:136,175:264]        
+        rotAngle = 52
+        # Calculate Rotation angle based on the angle the bottom view mirror makes with the VERTICAL
+        # The horizontal angle for this test was ~ 38 or 39 deg
+        # The corresponding vertical angle would be 51 or 52. (90-38) = 52
+        
         # 20230427 Frame
-        frame = frame[25:197,238:402]
-        rotAngle = 51
+        # frame = frame[25:197,238:402]
+        # rotAngle = 51
 
         # 20230525 Frame
         #frame = frame[13:183,273:432]

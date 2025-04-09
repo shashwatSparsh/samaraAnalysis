@@ -89,7 +89,7 @@ cv2.imwrite('bwNew.png', samplesBW)
 
 #%%
 # take all nonwhite pixels as 'true'
-sauce = 200
+sauce = 240
 kai = 254
 mask = cv2.inRange(samplesBW,0,sauce)
 

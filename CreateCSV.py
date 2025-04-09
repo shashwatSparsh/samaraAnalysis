@@ -1,4 +1,6 @@
-import seedAnalysis.py as sa
+#%%
+
+import seedAnalysis as sa
 import numpy as np
 
 ## SCRIPT for creating CSV from raw video data
@@ -18,6 +20,7 @@ date = 20230427
 
 ## NOTE: PUT VIDEO FILE IN TEST FOLDER NOT DATA FOLDER, VIDEO WILL BE COPIED THERE EVENTUALLY
 
+#%% This Section Loops through all the IDS and analyzes the response
 '''
 # start looping through IDs
 for id in ids:
@@ -58,14 +61,22 @@ for id in ids:
     vid.analyze(lower,upper,lower2,upper2,'bottom',date)
 '''
 
-filename = '20230427_Tests/006 Drop.mp4'
+#%% This Section generates for only the specific filename in question
+
+# filename = '20230427_Tests/006 Drop.mp4'
+filename = '20250326_Tests/003 Drop.mp4'
+
 
 # initialize vidAnalysis object
 vid = sa.vidAnalysis(filename)
 
 # set HSV range values for front view
+# lower = (0, 0, 0)
+# upper = (75, 95*255/100, 95*255/100)
+
 lower = (0, 0, 0)
 upper = (75, 95*255/100, 95*255/100)
+
 
 lower2= (210/2,0,0)
 upper2 = (180, 95*255/100, 95*255/100)
