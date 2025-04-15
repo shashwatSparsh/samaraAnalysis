@@ -293,7 +293,7 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 '''
 
 
-#%% Evaluating Rotational Speed
+#%% Steady State FFT
 
 # Transition Completion is the instant the steady-state rotation begins
 # It is abberiviated in the code as: TC
@@ -304,11 +304,6 @@ transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
 # Find Transition Time
 transitionTime = tNorm[transitionTimeIndex]
 
-# Determine the index of the rotation peaks
-rotationPeaks, _ = find_peaks(xNorm, prominence = 1)     
-timeDifference = np.zeros(rotationPeaks.size - 1)
-#print(timeDifference)
-
 # The Steady-State Rotation speed can be computed by slicing the xNorm Array for AFTER Transition
 xNormSS = xNorm[transitionTimeIndex+1:]
 tNormSS = tNorm[transitionTimeIndex+1:]
@@ -318,19 +313,22 @@ tNormSS = tNorm[transitionTimeIndex+1:]
 # Get Time Step Size in Seconds
 tNormStepSize = tNorm[1]-tNorm[0] # Sample Time Interval
 # Get total number of samples to compute relevant frequencies
-numSamples = xNormSS.size
+numSamplesSS = xNormSS.size
 
 # Compute the Frequency Magnitudes for the real input
 rotationSpectrum = abs(fft.rfft(xNormSS))
 # Compute the corresponding Frequencies using the total number of samples and the sample step size
-rotationFrequencies = fft.rfftfreq(numSamples, d=tNormStepSize)
+rotationFrequencies = fft.rfftfreq(numSamplesSS, d=tNormStepSize)
 # plt.plot(rotationFrequencies, rotationSpectrum)
 
 # Compute the two Dominant Frequencies for the corresponding modes
-dominantFreq = rotationFrequencies[np.where(rotationSpectrum == np.max(rotationSpectrum))] # Most Dominant
-secondDominantFreq = rotationFrequencies[np.where(rotationSpectrum == heapq.nlargest(2, rotationSpectrum)[1])] # Second Most Dominant
+dominantFreqSS = rotationFrequencies[np.where(rotationSpectrum == np.max(rotationSpectrum))] # Most Dominant
+secondDominantFreqSS = rotationFrequencies[np.where(rotationSpectrum == heapq.nlargest(2, rotationSpectrum)[1])] # Second Most Dominant
 
-#%%
+# Get Rotation Rate from Frequency
+omegaSS = secondDominantFreqSS * (2*np.pi)
+
+#%% Plot Results
 fig, [ax1, ax2] = plt.subplots(2, figsize=(16,12), dpi=800)
 ax1.plot(tNormSS, xNormSS, '-')
 ax1.set_xlabel("Time [s]", fontsize=18)
@@ -340,7 +338,7 @@ ax2.plot(rotationFrequencies, rotationSpectrum, '-')
 ax2.set_xlabel("Frequency [Hz]", fontsize=18)
 ax2.set_ylabel("Magnitude", fontsize=18)
 ax2.grid()
-fig.suptitle("FFT Analysis of Rotation", fontsize=48)
+fig.suptitle("FFT Analysis of Steady State", fontsize=48)
 
 # Loop through each subplot and set tick label size
 for ax in [ax1, ax2]:
@@ -348,64 +346,78 @@ for ax in [ax1, ax2]:
 
 plt.tight_layout()
 
+#%% Transition Analysis
 
-#%% The following FFT Methodology is depreciated
-# sampleFreq = 1/tNormStepSize      # Sample Frequency
-# numSamples = xNormSS.size
-# fInterval = sampleFreq/numSamples # Frequency Intervals
-# fSteps = np.linspace(0, (numSamples-1)*fInterval, numSamples)
+# The Steady-State Rotation speed can be computed by slicing the xNorm Array for AFTER Transition
+xNormTr = xNorm[:transitionTimeIndex]
+tNormTr = tNorm[:transitionTimeIndex]
 
-# # Compute the Real Parts FFT
-# rotationSpectrum = fft.rfft(xNormSS)
-# # We only care about the magnitude of the real parts and we normalize according to the sample size
-# rotationSpectrumMagnitude = abs(rotationSpectrum)/numSamples
+## FFT Analysis
+# Follow this Video for more details: https://www.youtube.com/watch?v=O0Y8FChBaFU
+# Get Time Step Size in Seconds
+tNormStepSize = tNorm[1]-tNorm[0] # Sample Time Interval
+# Get total number of samples to compute relevant frequencies
+numSamplesTr = xNormTr.size
 
-# # Frequencies to consider in analysis
-# fPlot = fSteps[0:int(numSamples/2+1)]
-# # rSM stands for rotation-Spectrum-Magnitude
-# rSMPlot = 2 * rotationSpectrumMagnitude[0:int(numSamples/2+1)]
-# rSMPlot[0] = rSMPlot[0]/2
+# Compute the Frequency Magnitudes for the real input
+transitionSpectrum = abs(fft.rfft(xNormTr))
+# Compute the corresponding Frequencies using the total number of samples and the sample step size
+transitionFrequencies = fft.rfftfreq(numSamplesTr, d=tNormStepSize)
+# plt.plot(transitionFrequencies, transitionSpectrum)
 
+# Compute the two Dominant Frequencies for the corresponding modes
+dominantFreqTr = transitionFrequencies[np.where(transitionSpectrum == np.max(transitionSpectrum))] # Most Dominant
+secondDominantFreqTr = transitionFrequencies[np.where(transitionSpectrum == heapq.nlargest(2, transitionSpectrum)[1])] # Second Most Dominant
 
-#%%
-dominantFreqMag = np.max(rotationSpectrum)
-dominantFreq = np.where(rotationSpectrum == dominantFreqMag)
+#%% Plot Results
+fig, [ax1, ax2] = plt.subplots(2, figsize=(16,12), dpi=800)
+ax1.plot(tNormTr, xNormTr, '-')
+ax1.set_xlabel("Time [s]", fontsize=18)
+ax1.set_ylabel("Normalized X Position", fontsize=18)
+ax1.grid()
+ax2.plot(transitionFrequencies, transitionSpectrum, '-')
+ax2.set_xlabel("Frequency [Hz]", fontsize=18)
+ax2.set_ylabel("Magnitude", fontsize=18)
+ax2.grid()
+fig.suptitle("FFT Analysis of Transition", fontsize=48)
 
-# peakFrequencies, _ = find_peaks(rotationSpectrum)
+# Loop through each subplot and set tick label size
+for ax in [ax1, ax2]:
+    ax.tick_params(axis='both', which='major', labelsize=18)
 
+plt.tight_layout()
 
-rotationFreqMagnitude = fft.rfftfreq(rotationSpectrum.size, d=tNormStepSize)
+# #%%
 
-# plt.plot(rotationSpectrum, rotationFreqMagnitude)
+# # Determine the index of the rotation peaks
+# rotationPeaks, _ = find_peaks(xNorm, prominence = 1)     
+# timeDifference = np.zeros(rotationPeaks.size - 1)
 
-#%%
-# ssRotationXNorm = xNorm()
+# # Actual Values @ peaks
+# xNormPeaks = xNorm[rotationPeaks]
+# tNormPeaks = tNorm[rotationPeaks]
+# # Compute Time Difference between each tNorm Peaks Value -- dektaT [s]
+# timeDifference = np.diff(tNormPeaks)    # [s]
 
-# Actual Values @ peaks
-xNormPeaks = xNorm[rotationPeaks]
-tNormPeaks = tNorm[rotationPeaks]
-# Compute Time Difference between each tNorm Peaks Value -- dektaT [s]
-timeDifference = np.diff(tNormPeaks)    # [s]
+# # Slicing Peaks Data for only steady state conditions
+# numSteadyState = 3 # of steady state rotations to consider
 
-# Slicing Peaks Data for only steady state conditions
-numSteadyState = 3 # of steady state rotations to consider
+# # Steady State Periods
+# startPeriod = timeDifference.size - numSteadyState
+# stopPeriod = timeDifference.size
+# stepPeriod = 1
+# periods = timeDifference[startPeriod:stopPeriod:stepPeriod] # [s]
+# # Steady State Time Stamps
+# stepTime = 1
+# steadyStateTimeStamps = tNormPeaks[tNormPeaks.size-numSteadyState:
+#                                     tNormPeaks.size:
+#                                         stepTime]
 
-# Steady State Periods
-startPeriod = timeDifference.size - numSteadyState
-stopPeriod = timeDifference.size
-stepPeriod = 1
-periods = timeDifference[startPeriod:stopPeriod:stepPeriod] # [s]
-# Steady State Time Stamps
-stepTime = 1
-steadyStateTimeStamps = tNormPeaks[tNormPeaks.size-numSteadyState:
-                                    tNormPeaks.size:
-                                        stepTime]
-
-# Compute Angular Speed in Rad/s -> 1 Rotation 2pi
-thetaDot = (1/periods) * 2 * np.pi
-# Average Angular Speed for vtip computation
-averageThetaDot = np.average(thetaDot)
-omega = averageThetaDot
+# # Compute Angular Speed in Rad/s -> 1 Rotation 2pi
+# thetaDot = (1/periods) * 2 * np.pi
+# # Average Angular Speed for vtip computation
+# averageThetaDot = np.average(thetaDot)
+# omega = averageThetaDot
 
 #%% Computing Disk Loading and Dynamic Pressure to estimate the CL at the end of transition
 
@@ -426,7 +438,7 @@ accelerationTC = descentAcceleration[transitionTimeIndex]
 rootSpeed = 0;
 # The highest oncomming flow speed as at the tip because this maximizes the radius of rotation
 # Thus the oncomming flow speed can be calculated as:
-tipSpeed = (omega*currentSpan)
+tipSpeed = (omegaSS*currentSpan)
 oncommingFlowAvg = 0.5*(tipSpeed+rootSpeed)
 
 # Because the vectors of the flow experienced by the blade are different, the sum can
@@ -498,14 +510,70 @@ specificThrustTC = ThrustTC_mN/(currentMass*1000)
 
 # print()
 
-#%%
+#%% Filtering Comparison
+numPlots = 3
 
-fig, axs = plt.subplots(3, figsize=(12,15), sharex=True, dpi=800)
-for i in range(3):
+fig, ax = plt.subplots(numPlots, figsize=(10, 8), dpi=800)
+
+yLabels = ["Raw Data [px/s]", "Kalman Filtering [px/s]", "Lowess Filtering [px/s]"]
+descentVelocitiesPlot = [descentVelocityRaw, descentVelocityK, descentVelocityL]
+for i in range(numPlots):
+    ax[i].grid()
+    ax[i].set_ylabel(yLabels[i])
+    ax[i].plot(vTime, descentVelocitiesPlot[i])
+    
+ax[2].set_xlabel("Time [s]")
+fig.suptitle("Filtering Comparison")
+plt.tight_layout()
+
+# ax[0].plot(vTime, descentVelocityK, label='Kalman Filtering')
+# ax[1].plot(vTime, descentVelocityL, label='Lowess Filtering')
+
+#%% Descent Velocity Log Plot
+numPlots = 2
+fig, ax = plt.subplots(numPlots, figsize=(10,8), dpi=800)
+
+ax[0].set_yscale('log')
+ax[0].plot(vTime, descentVelocity)
+ax[0].grid()
+ax[0].set_ylabel("Descent Velocity [m/s]")
+ax[1].plot(vTime, descentVelocity)
+ax[1].set_ylabel("Descent Velocity [m/s]")
+ax[1].set_xlabel("Time [s]")
+ax[1].grid()
+ax[0].set_title('Log Scale Descent Velocity')
+ax[1].set_title("Descent Velocity")
+ax[0].axvline(x = transitionTime, color='red',
+              linestyle=':', label='Transition-Time')
+ax[1].axvline(x = transitionTime, color='red',
+              linestyle=':', label='Transition-Time')
+# for i in range(numPlots):
+#     ax[i].grid()
+#     ax[i].axvline(x = transitionTime, color='red',
+#                   linestyle=':', label='Transition-Time')
+#     plt.legend()
+plt.tight_layout()
+
+#%% Descent Plot Generation
+
+numPlots = 4
+fig, axs = plt.subplots(numPlots, figsize=(17,12), dpi=800)
+axs[0].plot(descentPositionTiming, descentPosition, label="Descent Position")
+axs[0].set_ylabel("Descent Position Raw [px]", fontsize=14)
+axs[1].plot(tNorm, xNorm, label="xNorm")
+axs[1].set_ylabel("Normalized X Position", fontsize=14)
+axs[2].plot(vTime, descentVelocity, label="Descent Velocity")
+axs[2].set_ylabel("Descent Velocity [m/s] \n Lowess Filter", fontsize=14)
+axs[3].plot(aTime, descentAcceleration, label='Descent Acceleration')
+axs[3].set_ylabel("Descent Acceleration [$m/s^2$]", fontsize=14)
+axs[3].set_xlabel("Time [s]", fontsize=14)
+for i in range(numPlots):
     axs[i].grid()
-axs[0].plot(descentPositionTiming, descentPosition)
-axs[1].plot(descentPositionTiming, descentPositionSmoothedK)
-axs[2].plot(descentPositionTiming, descentPositionSmoothedL)
+    axs[i].axvline(x = transitionTime, color='red',
+                   linestyle=':', label='Transition-Time')
+    axs[i].legend()
+fig.suptitle("Samara Response", fontsize=22)
+plt.tight_layout()
 
 #%% Plotting the Filtering Results
 # # Comment this section out when un-needed
