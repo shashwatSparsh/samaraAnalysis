@@ -4,12 +4,14 @@
 # os.chdir(path='samaraAnalysis')
 
 import numpy as np
+import numpy.fft as fft
 import matplotlib.pyplot as plt
 import pandas
 import seedAnalysis as sa
 import tsmoothie.smoother as sm
 import scipy as sc
 from scipy.signal import find_peaks
+import heapq
 
 # script for analyzing csv files output from createCSV.py
 # lots of refinement could be done and there are a lot of unnecessary lines 
@@ -163,7 +165,7 @@ XX,YY,ZZ,alphaTrue,betaTrue = sa.polar2cartesian(alphaNorm,betaNorm,majorAxisNor
 smoother2.smooth(alphaTrue)
 alphaTrueS = smoother2.smooth_data[0]
 
-# smooth them out
+# smooth them outa
 smoother.smooth(XX)
 smoothXX = smoother.smooth_data[0]
 smoother.smooth(YY)
@@ -200,23 +202,34 @@ insight into possible future eccentricity tracking and optimization.
 #%% Kinematic Response Analysis
 
 # Calculate descent speed, remember the "x" variable here is the z position during descent
-vY = sa.descentSpeed(data['x'],data['time'])
+descentPosition = data['x']
+descentPositionTiming = data['time']
+dPosSmootherK = sm.KalmanSmoother(component='level_trend',
+                                  component_noise={'level':0.1,'trend':0.1},
+                                  observation_noise=1)
+dPosSmootherK.smooth(descentPosition)
+descentPositionSmoothedK = dPosSmootherK.smooth_data[0]
+dPosSmootherL = sm.LowessSmoother(0.3, 1)
+dPosSmootherL.smooth(descentPosition)
+descentPositionSmoothedL = dPosSmootherL.smooth_data[0]
 
+descentSpeed2 = sa.descentSpeed(descentPositionSmoothedL, descentPositionTiming)
+
+descentVelocityRaw = sa.descentSpeed(data['x'],data['time'])
 
 # Smooth out the descent velocity
 # Note: There should be a better smoothing function created here that is better
 # suited to remove noise
 
-smoother3 = sm.KalmanSmoother(component='level',component_noise={'level':0.5})
-smoother3.smooth(vY)
-vYsmooth1 = smoother3.smooth_data[0]
+# Kalman Filtering
+dVKsmoother = sm.KalmanSmoother(component='level',component_noise={'level':0.5})
+dVKsmoother.smooth(descentVelocityRaw)
+descentVelocityK = dVKsmoother.smooth_data[0]
 
-#smoother4 = sm.SpectralSmoother(0.09, 6, False)
-#smoother4.smooth(vY)
-#vYsmooth2 = smoother4.smooth_data[0]
-smoother5 = sm.LowessSmoother(0.3, 1)
-smoother5.smooth(vY)
-vYsmooth = smoother5.smooth_data[0]
+# Lowess Filtering
+dVLsmoother = sm.LowessSmoother(0.3, 1)
+dVLsmoother.smooth(descentVelocityRaw)
+descentVelocityL = dVLsmoother.smooth_data[0]
 
 
 ## Computing Velocity in m/s
@@ -237,18 +250,13 @@ conversionFactorBot = Kbot
 # Convert from inches to Meters
 inchesToMeters = 0.0254
 # Convert to m/s
-descentVelocity = vYsmooth * conversionFactorFront * inchesToMeters
+descentVelocity = descentVelocityL * conversionFactorFront * inchesToMeters
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
 # Two arrays of descent velocity and descent time have been generated
 
-
-
 #axs[2].plot(vTime, vYsmooth * conversionFactorFront * inchesToMeters,
 #         linestyle='--', label='Lowess Filter Smoothing')
-
-
-
 #plt.legend(velocitySmoothingLabels, loc="best")
 
 
@@ -283,47 +291,99 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 #print("SlicedThrust Values are", slicedThrust)
 #print(ThrustForce)
 '''
-#%% Plotting the Filtering Results
-# Comment this section out when un-needed
-fig, axs = plt.subplots(6, figsize=(12,15), sharex=True, dpi=800)
-#velocitySmoothingLabels=['Kalman Filter Smoothing','Lowess Filter Smoothing']
-for i in range(6):
-    axs[i].grid()
-# axs[0].grid()
-# axs[1].grid()
-# axs[2].grid()
-#ax.plot(vTime, vY, color='gray', linestyle=':' ,label='Raw Data')
-axs[0].plot(vTime, data['x'][:1514],
-            label="Raw Z Position (pixels)")
-axs[1].plot(vTime, xNorm[:1514],
-        linestyle='-.', label='xNorm')
-axs[2].plot(vTime, vYsmooth1 * conversionFactorFront * inchesToMeters,
-        linestyle='-.', label='Kalman Filter Smoothing')
-axs[3].plot(vTime, vYsmooth * conversionFactorFront * inchesToMeters,
-         linestyle='--', label='Lowess Filter Smoothing')
-axs[4].plot(aTime, np.diff(vYsmooth1 * conversionFactorFront * inchesToMeters)/np.diff(vTime),
-            label="Descent Acceleration")
-axs[5].plot(aTime, descentAcceleration)
 
-axs[0].set_ylabel("Descent Z Position")
-axs[1].set_ylabel("XNorm Position")
-axs[2].set_ylabel("Descent Velocity (K Filter)")
-axs[3].set_ylabel("Descent Velocity (L Filter)")
-axs[4].set_ylabel("Descent Acceleration (K Filter)")
-axs[5].set_ylabel("Descent Acceleration (L Filter)")
-axs[4].set_xlabel("Time [s]")
-
-plt.tight_layout()
 
 #%% Evaluating Rotational Speed
 
-peaks2, _ = find_peaks(xNorm, prominence = 1)     
-timeDifference = np.zeros(peaks2.size - 1)
+# Transition Completion is the instant the steady-state rotation begins
+# It is abberiviated in the code as: TC
+
+# Find when Transition Occurs
+# transitionTimeIndex is the index that can be used to parse for various values @ the index
+transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
+# Find Transition Time
+transitionTime = tNorm[transitionTimeIndex]
+
+# Determine the index of the rotation peaks
+rotationPeaks, _ = find_peaks(xNorm, prominence = 1)     
+timeDifference = np.zeros(rotationPeaks.size - 1)
 #print(timeDifference)
 
+# The Steady-State Rotation speed can be computed by slicing the xNorm Array for AFTER Transition
+xNormSS = xNorm[transitionTimeIndex+1:]
+tNormSS = tNorm[transitionTimeIndex+1:]
+
+## FFT Analysis
+# Follow this Video for more details: https://www.youtube.com/watch?v=O0Y8FChBaFU
+# Get Time Step Size in Seconds
+tNormStepSize = tNorm[1]-tNorm[0] # Sample Time Interval
+# Get total number of samples to compute relevant frequencies
+numSamples = xNormSS.size
+
+# Compute the Frequency Magnitudes for the real input
+rotationSpectrum = abs(fft.rfft(xNormSS))
+# Compute the corresponding Frequencies using the total number of samples and the sample step size
+rotationFrequencies = fft.rfftfreq(numSamples, d=tNormStepSize)
+# plt.plot(rotationFrequencies, rotationSpectrum)
+
+# Compute the two Dominant Frequencies for the corresponding modes
+dominantFreq = rotationFrequencies[np.where(rotationSpectrum == np.max(rotationSpectrum))] # Most Dominant
+secondDominantFreq = rotationFrequencies[np.where(rotationSpectrum == heapq.nlargest(2, rotationSpectrum)[1])] # Second Most Dominant
+
+#%%
+fig, [ax1, ax2] = plt.subplots(2, figsize=(16,12), dpi=800)
+ax1.plot(tNormSS, xNormSS, '-')
+ax1.set_xlabel("Time [s]", fontsize=18)
+ax1.set_ylabel("Normalized X Position", fontsize=18)
+ax1.grid()
+ax2.plot(rotationFrequencies, rotationSpectrum, '-')
+ax2.set_xlabel("Frequency [Hz]", fontsize=18)
+ax2.set_ylabel("Magnitude", fontsize=18)
+ax2.grid()
+fig.suptitle("FFT Analysis of Rotation", fontsize=48)
+
+# Loop through each subplot and set tick label size
+for ax in [ax1, ax2]:
+    ax.tick_params(axis='both', which='major', labelsize=18)
+
+plt.tight_layout()
+
+
+#%% The following FFT Methodology is depreciated
+# sampleFreq = 1/tNormStepSize      # Sample Frequency
+# numSamples = xNormSS.size
+# fInterval = sampleFreq/numSamples # Frequency Intervals
+# fSteps = np.linspace(0, (numSamples-1)*fInterval, numSamples)
+
+# # Compute the Real Parts FFT
+# rotationSpectrum = fft.rfft(xNormSS)
+# # We only care about the magnitude of the real parts and we normalize according to the sample size
+# rotationSpectrumMagnitude = abs(rotationSpectrum)/numSamples
+
+# # Frequencies to consider in analysis
+# fPlot = fSteps[0:int(numSamples/2+1)]
+# # rSM stands for rotation-Spectrum-Magnitude
+# rSMPlot = 2 * rotationSpectrumMagnitude[0:int(numSamples/2+1)]
+# rSMPlot[0] = rSMPlot[0]/2
+
+
+#%%
+dominantFreqMag = np.max(rotationSpectrum)
+dominantFreq = np.where(rotationSpectrum == dominantFreqMag)
+
+# peakFrequencies, _ = find_peaks(rotationSpectrum)
+
+
+rotationFreqMagnitude = fft.rfftfreq(rotationSpectrum.size, d=tNormStepSize)
+
+# plt.plot(rotationSpectrum, rotationFreqMagnitude)
+
+#%%
+# ssRotationXNorm = xNorm()
+
 # Actual Values @ peaks
-xNormPeaks = xNorm[peaks2]
-tNormPeaks = tNorm[peaks2]
+xNormPeaks = xNorm[rotationPeaks]
+tNormPeaks = tNorm[rotationPeaks]
 # Compute Time Difference between each tNorm Peaks Value -- dektaT [s]
 timeDifference = np.diff(tNormPeaks)    # [s]
 
@@ -349,14 +409,6 @@ omega = averageThetaDot
 
 #%% Computing Disk Loading and Dynamic Pressure to estimate the CL at the end of transition
 
-# Transition Completion is the instant the steady-state rotation begins
-# It is abberiviated in the code as: TC
-
-# Find when Transition Occurs
-# transitionTimeIndex is the index that can be used to parse for various values @ the index
-transitionTimeMarker, transitionTimeIndex = sa.findTransition(tNorm,alphaNormS)
-# Find Transition Time
-transitionTime = tNorm[transitionTimeIndex]
 # Find the Coning Angle at end of Transition
 coningAngleTC = betaTrue[transitionTimeIndex]
 # Find the descent velocity at the end of Transition
@@ -446,7 +498,48 @@ specificThrustTC = ThrustTC_mN/(currentMass*1000)
 
 # print()
 
+#%%
 
+fig, axs = plt.subplots(3, figsize=(12,15), sharex=True, dpi=800)
+for i in range(3):
+    axs[i].grid()
+axs[0].plot(descentPositionTiming, descentPosition)
+axs[1].plot(descentPositionTiming, descentPositionSmoothedK)
+axs[2].plot(descentPositionTiming, descentPositionSmoothedL)
+
+#%% Plotting the Filtering Results
+# # Comment this section out when un-needed
+# fig, axs = plt.subplots(6, figsize=(12,15), sharex=True, dpi=800)
+# #velocitySmoothingLabels=['Kalman Filter Smoothing','Lowess Filter Smoothing']
+# for i in range(6):
+#     axs[i].grid()
+# # axs[0].grid()
+# # axs[1].grid()
+# # axs[2].grid()
+# #ax.plot(vTime, vY, color='gray', linestyle=':' ,label='Raw Data')
+# axs[0].plot(vTime, data['x'][:1514],
+#             label="Raw Z Position (pixels)")
+# axs[1].plot(vTime, xNorm[:1514],
+#         linestyle='-', label='xNorm')
+# axs[2].plot(vTime, vYsmooth * conversionFactorFront * inchesToMeters,
+#         linestyle='-', label='Lowess Filter Smoothing')
+# axs[3].plot(vTime, descentSpeed2 * conversionFactorFront * inchesToMeters,
+#          linestyle='-', label='Lowess Filter Smoothing Original')
+# axs[4].plot(aTime, np.diff(vYsmooth * conversionFactorFront * inchesToMeters)/np.diff(vTime),
+#             label="Descent Acceleration")
+# axs[5].plot(aTime, np.diff(descentSpeed2 * conversionFactorFront * inchesToMeters)/np.diff(vTime),
+#             label="Descent Acceleration")
+# # axs[5].plot(aTime, descentAcceleration)
+
+# axs[0].set_ylabel("Descent Z Position")
+# axs[1].set_ylabel("XNorm Position")
+# axs[2].set_ylabel("Descent Velocity (K Filter)")
+# axs[3].set_ylabel("Descent Velocity (L Filter)")
+# axs[4].set_ylabel("Descent Acceleration (K Filter)")
+# axs[5].set_ylabel("Descent Acceleration (L Filter)")
+# axs[4].set_xlabel("Time [s]")
+
+# plt.tight_layout()
 
 #%% Using FFT
 
