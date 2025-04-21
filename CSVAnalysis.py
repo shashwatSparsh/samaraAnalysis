@@ -245,12 +245,12 @@ Kbot = 0.1 # in/pixel
 Kfront = 0.045 # in/pixel
 
 # Set to appropriate Conversion Factor
-conversionFactorFront = Kfront
-conversionFactorBot = Kbot
+conversionFactorFront = Kbot
+conversionFactorBot = Kfront
 # Convert from inches to Meters
 inchesToMeters = 0.0254
 # Convert to m/s
-descentVelocity = descentVelocityL * conversionFactorFront * inchesToMeters
+descentVelocity = descentVelocityL * inchesToMeters
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
 # Two arrays of descent velocity and descent time have been generated
@@ -285,12 +285,6 @@ stepThrust = 1
 slicedThrust = ThrustForce[startThrust:stopThrust:stepThrust]
 evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 
-''' Debugging
-#print(g-aYMPS2[start:stop:step])
-#print("Accelerations are", aYMPS2[start:stop:step])
-#print("SlicedThrust Values are", slicedThrust)
-#print(ThrustForce)
-'''
 
 
 #%% Steady State FFT
@@ -322,11 +316,12 @@ rotationFrequencies = fft.rfftfreq(numSamplesSS, d=tNormStepSize)
 # plt.plot(rotationFrequencies, rotationSpectrum)
 
 # Compute the two Dominant Frequencies for the corresponding modes
-dominantFreqSS = rotationFrequencies[np.where(rotationSpectrum == np.max(rotationSpectrum))] # Most Dominant
-secondDominantFreqSS = rotationFrequencies[np.where(rotationSpectrum == heapq.nlargest(2, rotationSpectrum)[1])] # Second Most Dominant
+dominantFreqSS1 = rotationFrequencies[np.where(rotationSpectrum == np.max(rotationSpectrum))] # Most Dominant
+dominantFreqSS2 = rotationFrequencies[np.where(rotationSpectrum == heapq.nlargest(2, rotationSpectrum)[1])] # Second Most Dominant
 
 # Get Rotation Rate from Frequency
-omegaSS = secondDominantFreqSS * (2*np.pi)
+omegaSS = dominantFreqSS2 * (2*np.pi)
+omegaSS1 = dominantFreqSS1 * (2*np.pi)
 
 #%% Plot Results
 fig, [ax1, ax2] = plt.subplots(2, figsize=(16,12), dpi=800)
@@ -366,8 +361,8 @@ transitionFrequencies = fft.rfftfreq(numSamplesTr, d=tNormStepSize)
 # plt.plot(transitionFrequencies, transitionSpectrum)
 
 # Compute the two Dominant Frequencies for the corresponding modes
-dominantFreqTr = transitionFrequencies[np.where(transitionSpectrum == np.max(transitionSpectrum))] # Most Dominant
-secondDominantFreqTr = transitionFrequencies[np.where(transitionSpectrum == heapq.nlargest(2, transitionSpectrum)[1])] # Second Most Dominant
+dominantFreqTr1 = transitionFrequencies[np.where(transitionSpectrum == np.max(transitionSpectrum))] # Most Dominant
+dominantFreqTr2 = transitionFrequencies[np.where(transitionSpectrum == heapq.nlargest(2, transitionSpectrum)[1])] # Second Most Dominant
 
 #%% Plot Results
 fig, [ax1, ax2] = plt.subplots(2, figsize=(16,12), dpi=800)
@@ -422,7 +417,9 @@ plt.tight_layout()
 #%% Computing Disk Loading and Dynamic Pressure to estimate the CL at the end of transition
 
 # Find the Coning Angle at end of Transition
-coningAngleTC = betaTrue[transitionTimeIndex]
+# coningAngleTC = betaTrue[transitionTimeIndex]
+# The coning Angle Computation is incorrect in the software and was computed manually by reviewing the footage
+coningAngleTC = np.arctan(8/18) # in Radians
 # Find the descent velocity at the end of Transition
 descentVelocityTC = descentVelocity[transitionTimeIndex]
 # Acceleration at completion of transition
@@ -438,12 +435,13 @@ accelerationTC = descentAcceleration[transitionTimeIndex]
 rootSpeed = 0;
 # The highest oncomming flow speed as at the tip because this maximizes the radius of rotation
 # Thus the oncomming flow speed can be calculated as:
-tipSpeed = (omegaSS*currentSpan)
+tipSpeed = (omegaSS1*currentSpan)
 oncommingFlowAvg = 0.5*(tipSpeed+rootSpeed)
 
 # Because the vectors of the flow experienced by the blade are different, the sum can
 # be calculated by taking the vecotr sum of the descent Velocity and the oncommingFlowAvg
 totalBladeFlowVelocity = np.sqrt(np.square(oncommingFlowAvg)+np.square(descentVelocityTC))
+#totalBladeFlowVelocity = oncommingFlowAvg + (descentVelocityTC*np.cos(coningAngleTC))
 
 # Based on the Niu Atkins Intrinsic Equilibrium of Samara Auto-rotation, the CL can be approximated
 # by balancing the disk loading and the dynamic pressure
@@ -456,7 +454,7 @@ totalBladeFlowVelocity = np.sqrt(np.square(oncommingFlowAvg)+np.square(descentVe
 # As the free-stream velocity is zero in this test, the room has still air, the V0 = 0;
 # The flow experienced over the samara blade was calculated prior
 
-dynamicPressureTC = 0.5*rho*np.square(totalBladeFlowVelocity)
+dynamicPressureTC = 0.5*rho*np.square(descentVelocityTC)
 
 
 # The Diskloading is a function of the coning angle of the seed as greater coning angles reduce the area of disk generating during the spin
@@ -468,7 +466,7 @@ dynamicPressureTC = 0.5*rho*np.square(totalBladeFlowVelocity)
 
 # Disk Area: A = pi * (span*cos(betaNormS))^2
 # Convert the span to meters from mm
-diskRadius = currentSpan*np.cos(np.deg2rad(coningAngleTC))
+diskRadius = currentSpan*np.cos(coningAngleTC)
 diskArea = np.pi * (diskRadius**2)
 
 # Disk Loading = mg/A
@@ -489,8 +487,12 @@ ThrustTC_mN = ThrustTC*1000
 # The mass should be converted back to grams from kg in order for this parameter to make sense
 specificThrustTC = ThrustTC_mN/(currentMass*1000)
 
+#%% Computing Drag Coefficient
+# The equation is as follows: mg ~ C_d * 0.5rhoVd^2 * A costheta
+# C_d = mg / (0.5rhoVd^2 * A costheta)
 
-
+CdTC = (currentMass*g) / (0.5*rho*(descentVelocityTC**2)*diskArea)
+CdTC = (currentMass*g) / (0.5*rho*(descentVelocity[1400]**2)*diskArea)
 # print(coningAngleTC)
 
 # print(descentVelocityTC)

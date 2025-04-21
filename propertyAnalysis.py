@@ -68,7 +68,7 @@ dataSet2 = ['fastMass.csv',
             'fastSampleProperties.csv',
             'fastSeedLayoutMarkupNoMass.png']
 
-testSet = dataSet2
+testSet = dataSet1
 
 
 dims = pandas.read_csv(testSet[0], header = None)
