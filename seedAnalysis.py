@@ -883,8 +883,12 @@ def lengthMatch(time1,time2,x,y,z):
 
     return tNew3,xNew3,yNew3,zNew3
 
-def findTransition(time,alpha):
-    tROI = np.where(time>0.35)[0]
+def findTransition(time, alpha, startSearch):
+    # Default  searchTime is 0.35
+    # For Seed 7 is 42
+    
+    tROI = np.where(time>startSearch)[0]
+    print(startSearch)
     searchTime = time[tROI]
     searchAlpha = alpha[tROI]
 
