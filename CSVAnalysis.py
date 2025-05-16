@@ -37,22 +37,25 @@ spanmm3 = 61.12  # [mm]
 spanmm6 = 74.06   
 spanmm7 = 61.96
 spanmm47 = 59.12
-radii = .001*(np.array([spanmm3, spanmm7, spanmm47])-15)
+spanmm24 = 50.00
+radii = .001*(np.array([spanmm3, spanmm7, spanmm47, spanmm24])-15)
 # Masses [g]
 massGrams3 = 0.4                        # [g]
 massGrams6 = 0.7                        # [g]
 massGrams7 = 0.5                        # [g]
 massGrams47 = 0.6                       # [g] temporarily hard coded for seed three test case
-massesKg = .001*np.array([massGrams3, massGrams7, massGrams47])
+massGrams52 = 0.5
+massesKg = .001*np.array([massGrams3, massGrams7, massGrams47, massGrams52])
 
-bladeAreas = (10**-6)*np.array([1168, 1050, 941])
+bladeAreas = (10**-6)*np.array([1168, 1050, 941, 880])
 
-colors = ['tab:orange', 'tab:blue', 'tab:green']
-seedVal = [0, 1, 2]
-coningAngleTCS = [np.arctan(8/15), np.arctan(9/17), np.arctan(8/12)]
-coningAngleSSS = [np.arctan(5/17), np.arctan(4/19), np.arctan(4/15)]
+colors = ['tab:orange', 'tab:blue', 'tab:green', 'tab:blue']
+seedVal = [0, 1, 2, 3]
+#coningAngleTCS = [np.arctan(8/15), np.arctan(9/17), np.arctan(8/12)]
+coningAngleSSS = [np.arctan(5/17), np.arctan(4/19), np.arctan(4/15), np.arctan(3.5/15)]
+coningAngleTCS = coningAngleSSS
 
-ids = [3, 7, 47]
+ids = [3, 7, 47, 24]
 
 #%% Setting ID to analyze specific Seed
 # Set ID to analyze a particular seed
@@ -61,7 +64,7 @@ seedIndex = 0
 currentID = ids[seedIndex]
 
 id = currentID
-ssIndex = 800
+ssIndex = 1400
 
 
 
@@ -181,7 +184,7 @@ XX,YY,ZZ,alphaTrue,betaTrue = sa.polar2cartesian(alphaNorm,betaNorm,majorAxisNor
 smoother2.smooth(alphaTrue)
 alphaTrueS = smoother2.smooth_data[0]
 
-# smooth them outa
+# smooth them out
 smoother.smooth(XX)
 smoothXX = smoother.smooth_data[0]
 smoother.smooth(YY)
@@ -220,33 +223,36 @@ insight into possible future eccentricity tracking and optimization.
 # Calculate descent speed, remember the "x" variable here is the z position during descent
 descentPosition = data['x']
 descentPositionTiming = data['time']
-dPosSmootherK = sm.KalmanSmoother(component='level_trend',
-                                  component_noise={'level':0.1,'trend':0.1},
-                                  observation_noise=1)
-dPosSmootherK.smooth(descentPosition)
-descentPositionSmoothedK = dPosSmootherK.smooth_data[0]
-dPosSmootherL = sm.LowessSmoother(0.3, 1)
+#dPosSmootherK = sm.KalmanSmoother(component='level_trend',
+#                                  component_noise={'level':0.1,'trend':0.1},
+#                                  observation_noise=1)
+#dPosSmootherK.smooth(descentPosition)
+#descentPositionSmoothedK = dPosSmootherK.smooth_data[0]
+dPosSmootherL = sm.LowessSmoother(0.45, 1)
 dPosSmootherL.smooth(descentPosition)
 descentPositionSmoothedL = dPosSmootherL.smooth_data[0]
 
 descentSpeed2 = sa.descentSpeed(descentPositionSmoothedL, descentPositionTiming)
 
-descentVelocityRaw = sa.descentSpeed(data['x'],data['time'])
+#%%
+
+# descentVelocityRaw = sa.descentSpeed(data['x'],data['time'])
 
 # Smooth out the descent velocity
 # Note: There should be a better smoothing function created here that is better
 # suited to remove noise
 
 # Kalman Filtering
-dVKsmoother = sm.KalmanSmoother(component='level',component_noise={'level':0.5})
-dVKsmoother.smooth(descentVelocityRaw)
-descentVelocityK = dVKsmoother.smooth_data[0]
+#dVKsmoother = sm.KalmanSmoother(component='level',component_noise={'level':0.5})
+#dVKsmoother.smooth(descentVelocityRaw)
+#descentVelocityK = dVKsmoother.smooth_data[0]
 
 # Lowess Filtering
-Lsmoother = sm.LowessSmoother(0.9, 1)
-Lsmoother.smooth(descentVelocityRaw)
+Lsmoother = sm.LowessSmoother(0.15, 1)
+#Lsmoother.smooth(descentVelocityRaw)
+#descentVelocityL = Lsmoother.smooth_data[0]
+Lsmoother.smooth(descentSpeed2)
 descentVelocityL = Lsmoother.smooth_data[0]
-
 
 ## Computing Velocity in m/s
 # Thesis Page 17 figure 2.5 for calibration and unit conversion
@@ -267,6 +273,7 @@ conversionFactorBot = Kfront
 inchesToMeters = 0.0254
 # Convert to m/s
 descentVelocity = descentVelocityL * inchesToMeters
+#descentVelocity = dVL2 * inchesToMeters
 # Pull Time from Data Frame and remove last value as there are n-1 Velocities
 vTime = data['time'].to_numpy()[:-1]
 # Two arrays of descent velocity and descent time have been generated
@@ -292,17 +299,6 @@ aTime = vTime[:-1]
 # note: a = a_net
 # ThrustAccelerationIPS2 = -1 *(aYsmoothIPS2 - gIPS2)
 g = 9.81                                    # Gravitational Acceleration [m/s^2]
-ThrustForce = massesKg[0] * (g - descentAcceleration)    # [kg*m/s^2] = [N]
-
-# Take the Last n Values from the Thrust Computation because they are steady state
-numEvals = 4
-thrustValS = numEvals                                                 # Seed 3
-startThrust = ThrustForce.size - thrustValS
-stopThrust = ThrustForce.size
-stepThrust = 1
-slicedThrust = ThrustForce[startThrust:stopThrust:stepThrust]
-evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
-
 #%% Finding Transition
 
 # Transition Completion is the instant the steady-state rotation begins
@@ -315,17 +311,30 @@ evaluationDuration = tNorm[tNorm.size-1] - tNorm[tNorm.size-(numEvals+1)]
 # The alternate and maybe more appropriate method of computing transition time may be to find the minima of the normalized
 # position after some period of time based on each seed, (eg fast transitioning seeds, 0.35s, average, 0.4, etc.)
 
-tNormStart = np.where(tNorm >= 0.3)[0][0]
-tNormEnd = np.argmax(tNorm>=0.36)
+# tNormStart = np.where(tNorm >= 0.5)[0][0]
+# tNormEnd = np.argmax(tNorm>=0.6)
 
-transitionTimeIndex = tNormStart + \
-                      np.argmin(xNorm[tNormStart:tNormEnd])
+# transitionTimeIndex = tNormStart + \
+#                       np.argmin(xNorm[tNormStart:tNormEnd])
 
 # Find Transition Time
+
+# transitionTimeIndex = 727
+
+#time, ind = sa.findTransition(tNorm, alphaNorm, 0.35)
+
+#transitionTimeIndex = 690
+
+transitionTime, transitionTimeIndex = sa.findTransition(tNorm, alphaNorm, 0.35)
+# transitionTime = tNorm[transitionTimeIndex]
+
+# 728 for Seed 47
+transitionTimeIndex = 483
 transitionTime = tNorm[transitionTimeIndex]
-print(transitionTime)
+#print(transitionTime)
 
 
+#print(sa.findTransition(tNorm, alphaTrue, 0.21))
 
 #%% Steady State FFT
 
@@ -397,7 +406,10 @@ dominantFreqTr2 = transitionFrequencies[np.where(transitionSpectrum == dominantF
 #coningAngleSS = np.arctan(4/19)
 
 coningAngleTC = coningAngleTCS[seedIndex]
+
 coningAngleSS = coningAngleSSS[seedIndex]
+
+# coningAngleTC = coningAngleSS
 
 # Find the descent velocity at the end of Transition
 descentVelocityTC = descentVelocity[transitionTimeIndex]
@@ -451,6 +463,7 @@ diskAreaTC = np.pi * (diskRadiusTC**2)
 diskAreaSS = np.pi * (diskRadiusSS**2)
 
 # Disk Loading = mg/A
+# Where A is the projected disk area
 diskLoadingTC = (currentMass*g)/diskAreaTC
 
 diskLoadingSS = (currentMass*g)/diskAreaSS
@@ -460,8 +473,8 @@ diskLoadingSS = (currentMass*g)/diskAreaSS
 #print(diskSolidity)
 
 # CL at completion of transition
-CL_TC = diskLoadingTC/dynamicPressureTC
-CL_SS = diskLoadingSS/dynamicPressureSS
+CLTC = diskLoadingTC/dynamicPressureTC
+CLSS = diskLoadingSS/dynamicPressureSS
 
 # Recall Thrust is given by T = m * (g-a)
 ThrustTC = currentMass * (g-accelerationTC) # [N]
@@ -477,10 +490,53 @@ specificThrustSS = ThrustSS/currentMass
 #%% Computing Drag Coefficient
 # The equation is as follows: mg ~ C_d * 0.5rhoVd^2 * A costheta
 # C_d = mg / (0.5rhoVd^2 * A costheta)
+# Where A is the blade area, NOT THE PROJECTED DISK AREA
 
-CdTC = (currentMass*g) / (0.5*rho*(descentVelocityTC**2)*bladeAreas[seedIndex])
-CdSS = (currentMass*g) / (0.5*rho*(descentVelocity[ssIndex]**2)*bladeAreas[seedIndex])
+CDTC = (currentMass*g) / (0.5*rho*(descentVelocityTC**2)*bladeAreas[seedIndex])
+CDSS = (currentMass*g) / (0.5*rho*(descentVelocity[ssIndex]**2)*bladeAreas[seedIndex])
 
+#%% Results Compilation/DataFrame Generation
+
+transitionResultsLabels = np.array(['CL',
+                                    'CD',
+                                    'Ts [mN/g]',
+                                    'Vd [m/s]',
+                                    'Qd [N/m^2]',
+                                    'Transition Time [s]',
+                                    'Transition Index'])
+transitionResults = np.array([CLTC, CDTC, specificThrustTC, descentVelocityTC, dynamicPressureTC, transitionTime, transitionTimeIndex])
+steadyStateResultsLabels = np.array(['CL',
+                                     'CD',
+                                     'Ts [mN/g]',
+                                     'Vd [m/s]',
+                                     'Qd [N/m^2]',
+                                     'Disk Loading [N/m^2]',
+                                     'Coning Angle [rad]'])
+steadyStateResults = np.array([CLSS, CDSS, specificThrustSS, descentVelocitySS, dynamicPressureSS, diskLoadingSS, coningAngleSS])
+
+transitionDF = pandas.DataFrame({'Variable': transitionResultsLabels,
+                                 'Value': transitionResults})
+steadyStateDF = pandas.DataFrame({'Variable': steadyStateResultsLabels,
+                                  'Value': steadyStateResults})
+positionDF = pandas.DataFrame({'Time [s]': descentPositionTiming, 'Descent Position [m]': (descentPositionSmoothedL*inchesToMeters)})
+velocityDF = pandas.DataFrame({'Time [s]': vTime, 'Descent Velocity [m/s]': descentVelocity})
+accelerationDF = pandas.DataFrame({'Time [s]': aTime, 'Acceleration [m/$s^2$]': descentAccelerationS})
+normalizedTrajectory = pandas.DataFrame({'Time [s]': tNorm,
+                                  'xNorm': xNorm,
+                                  'yNorm': yNorm,
+                                  'zNorm': zNorm})
+smoothedTrajectory = pandas.DataFrame({'Time [s]': timeB,
+                                       'X Pos [px]': smoothX,
+                                       'Y Pos [px]': smoothY,
+                                       'Z Pos [px]': smoothZ})
+
+
+#%% Font Sizes
+
+fontSizeInt = 18
+#fontSizeInt = 12
+fontSizeTit = 48
+#fontSizeTit = 14
 
 #%% Plot FFT Results
 
@@ -489,32 +545,35 @@ axsXFFT = [tNormTr, tNormSS, transitionFrequencies, steadyStateFrequencies]
 axsYLabels = ["Normalized X Position", "Frequency Magnitude", "Normalized X Position", "Frequency Magnitude"]
 axsXLabels = ["Time [s]", "Frequency [Hz]", "Time [s]", "Frequency [Hz]"]
 
-fig, [(ax1, ax2), (ax3, ax4)] = plt.subplots(2, 2, figsize=(20,10), dpi=800)
+# 9/5 for Paper
+# 18/10 for Powerpoint
+
+fig, [(ax1, ax2), (ax3, ax4)] = plt.subplots(2, 2, figsize=(18,10), dpi=800)
 
 ax1.plot(tNormTr, xNormTr, colors[currentSeedVal])
 ax2.plot(tNormSS, xNormSS, colors[currentSeedVal])
-ax3.plot(transitionFrequencies, transitionSpectrum, colors[currentSeedVal])
-ax4.plot(steadyStateFrequencies, steadyStateSpectrum, colors[currentSeedVal])
+ax3.plot(transitionFrequencies[:100], transitionSpectrum[:100], colors[currentSeedVal])
+ax4.plot(steadyStateFrequencies[:100], steadyStateSpectrum[:100], colors[currentSeedVal])
 
-ax1.set_xlabel("Time [s]", fontsize=18)
-ax1.set_ylabel("Normalized X Position \n Transition", fontsize=18)
-ax2.set_xlabel("Time [s]", fontsize=18)
-ax2.set_ylabel("Normalized X Position \n Steady-State", fontsize=18)
+ax1.set_xlabel("Time [s]", fontsize=fontSizeInt)
+ax1.set_ylabel("Normalized X Position \n Transition", fontsize=fontSizeInt)
+ax2.set_xlabel("Time [s]", fontsize=fontSizeInt)
+ax2.set_ylabel("Normalized X Position \n Steady-State", fontsize=fontSizeInt)
 
-ax3.set_xlabel(axsXLabels[1], fontsize=18)
-ax3.set_ylabel(axsYLabels[1], fontsize=18)
-ax4.set_xlabel(axsXLabels[1], fontsize=18)
-ax4.set_ylabel(axsYLabels[1], fontsize=18)
+ax3.set_xlabel(axsXLabels[1], fontsize=fontSizeInt)
+ax3.set_ylabel(axsYLabels[1], fontsize=fontSizeInt)
+ax4.set_xlabel(axsXLabels[1], fontsize=fontSizeInt)
+ax4.set_ylabel(axsYLabels[1], fontsize=fontSizeInt)
 
 ax1.grid()
 ax2.grid()
 ax3.grid()
 ax4.grid()
 
-fig.suptitle("FFT Analysis", fontsize=48)
+fig.suptitle("FFT Analysis", fontsize=fontSizeTit)
 
 for ax in [ax1, ax2, ax3, ax4]:
-    ax.tick_params(axis='both', which='major', labelsize=18)
+    ax.tick_params(axis='both', which='major', labelsize=fontSizeInt)
 
 fig.align_labels()
 plt.tight_layout()
@@ -540,29 +599,36 @@ plt.tight_layout()
 
 #%% Descent Plot Generation
 
-numPlots = 4
-fig, axs = plt.subplots(numPlots, figsize=(17,12), dpi=800)
-axs[0].plot(descentPositionTiming, descentPosition*inchesToMeters, label="Descent Position", color=colors[currentSeedVal])
-axs[0].set_ylabel("Descent Position Raw [m]", fontsize=14)
-axs[1].plot(tNorm, xNorm, label="xNorm", color=colors[currentSeedVal])
-axs[1].set_ylabel("Normalized X Position", fontsize=14)
-axs[2].plot(vTime, descentVelocity, label="Descent Velocity", color=colors[currentSeedVal])
-axs[2].set_ylabel("Descent Velocity [m/s]", fontsize=14)
-axs[3].plot(aTime, descentAccelerationS, label='Descent Acceleration', color=colors[currentSeedVal])
-axs[3].set_ylabel("Descent Acceleration [$m/s^2$]", fontsize=14)
-axs[3].set_xlabel("Time [s]", fontsize=14)
+fontSizeInt = 14
+fontSizeTit = 24
 
-transitionTimeLabel = "Transition Time", round(transitionTime, 3), "s"
+# 16/12
+# 10/12 for Paper
+
+numPlots = 4
+fig, axs = plt.subplots(numPlots, figsize=(16,12), dpi=800)
+axs[0].plot(descentPositionTiming, descentPosition*inchesToMeters,
+            label="Descent Position", color=colors[currentSeedVal])
+axs[0].set_ylabel("Descent Position Raw [m]", fontsize=fontSizeInt)
+axs[1].plot(tNorm, xNorm, label="xNorm", color=colors[currentSeedVal])
+axs[1].set_ylabel("Normalized X Position", fontsize=fontSizeInt)
+axs[2].plot(vTime, descentVelocity, label="Descent Velocity", color=colors[currentSeedVal])
+axs[2].set_ylabel("Descent Velocity [m/s]", fontsize=fontSizeInt)
+axs[3].plot(aTime, descentAccelerationS, label='Descent Acceleration', color=colors[currentSeedVal])
+axs[3].set_ylabel("Descent Acceleration [$m/s^2$]", fontsize=fontSizeInt)
+axs[3].set_xlabel("Time [s]", fontsize=fontSizeInt)
+
+transitionTimeLabel = "Transition Time " + str(round(transitionTime, 3)) + "s"
 
 for i in range(numPlots):
     axs[i].grid()
     axs[i].axvline(x = transitionTime, color='black',
                     linestyle=':', label=transitionTimeLabel)
     # axs[i].legend()
-axs[3].legend()
+axs[3].legend(fontsize=fontSizeInt)
 fig.align_labels()
 # plt.text(transitionTime-.03, -320, 'Transition time')
-fig.suptitle("Seed 3 Response: Fast Transition", fontsize=22)
+fig.suptitle("Seed 3 Response", fontsize=fontSizeTit)
 plt.tight_layout()
 
 #%% Filtering Comparison
